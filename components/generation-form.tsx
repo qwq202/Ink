@@ -637,7 +637,6 @@ export function GenerationForm({
     const currentPreferred = falModelByCategoryRef.current[falCategory] ?? selectedFalModel
     if (currentPreferred && falModels.some((model) => model.id === currentPreferred)) {
       if (currentPreferred !== selectedFalModel) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         updateFalModel(currentPreferred)
       }
       return
