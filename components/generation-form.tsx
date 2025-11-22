@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -32,6 +32,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 const PREFERENCES_STORAGE_KEY = "generation-form-preferences"
 
 type GenerationPreferences = {
+  prompt?: string
   providerId: string
   falModel: string
   newapiModel: string
@@ -52,6 +53,8 @@ interface GenerationFormProps {
   onReset?: () => void
   resetSignal?: number
   onGenerate: (provider: ProviderConfig, params: GenerationParams) => Promise<GenerationResult>
+  initialPrompt?: string
+  onPromptSet?: () => void
 }
 
 export function GenerationForm({
@@ -61,30 +64,81 @@ export function GenerationForm({
   onGenerate,
   onReset,
   resetSignal,
+  initialPrompt,
+  onPromptSet,
 }: GenerationFormProps) {
-  const [prompt, setPrompt] = useState("")
+  // 注意：为避免服务端/客户端初始 HTML 不一致导致的 Hydration 报错
+  // 这里不在初始 state 读取 localStorage，而是统一在后续 effect 中恢复
+
+  const [prompt, setPrompt] = useState(initialPrompt || "")
   const [selectedProvider, setSelectedProvider] = useState("fal")
-  const [imageSize, setImageSize] = useState("square")
+  const [imageSizeSelection, setImageSizeSelection] = useState("square")
   const [numImages, setNumImages] = useState(1)
   const [seed, setSeed] = useState<number | undefined>()
   const [safetyChecker, setSafetyChecker] = useState(true)
   const [syncMode, setSyncMode] = useState(true)
   const [selectedFalModel, setSelectedFalModel] = useState<string>("fal-ai/flux/dev")
+  const falModelByCategoryRef = useRef<Record<string, string>>({
+    "text-to-image": "fal-ai/flux/dev",
+    "image-to-image": "fal-ai/flux/dev",
+  })
   const [isFalModelPopoverOpen, setIsFalModelPopoverOpen] = useState(false)
+  const [falSearch, setFalSearch] = useState("")
+  const falListRef = useRef<HTMLDivElement>(null)
+  const falPrevSearchRef = useRef("")
   const prefetchedCategoriesRef = useRef<Set<string>>(new Set())
   const hasInitialPreferencesRef = useRef(false)
   const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false)
   const hasInitializedResetSignalRef = useRef(false)
+  const prevResetSignalRef = useRef<number | undefined>(undefined)
+  const isRestoringRef = useRef(true)
+  const restoredPromptRef = useRef<string | null>(null)
   
   // NewAPI states
   const [selectedNewapiModel, setSelectedNewapiModel] = useState<string>("dall-e-2")
   const [isNewapiModelPopoverOpen, setIsNewapiModelPopoverOpen] = useState(false)
+  const [newapiSearch, setNewapiSearch] = useState("")
+  const newapiListRef = useRef<HTMLDivElement>(null)
+  const newapiPrevSearchRef = useRef("")
   const [newapiQuality, setNewapiQuality] = useState<string>("standard")
   const [newapiStyle, setNewapiStyle] = useState<string>("vivid")
+  const [customWidth, setCustomWidth] = useState<string>("")
+  const [customHeight, setCustomHeight] = useState<string>("")
+  const [customSizeApplied, setCustomSizeApplied] = useState<string | null>(null)
+  const [customSizeFeedback, setCustomSizeFeedback] = useState<{ type: "success" | "error"; message: string } | null>(
+    null,
+  )
+  const [customApplyState, setCustomApplyState] = useState<"idle" | "success" | "error">("idle")
+  const [customSizeAppliedAt, setCustomSizeAppliedAt] = useState<string | null>(null)
+
+
+
+  const customAppliedValue = useMemo(() => {
+    if (imageSizeSelection && /^\d+\s*x\s*\d+$/i.test(imageSizeSelection)) {
+      return imageSizeSelection.replace(/\s+/g, "").toLowerCase()
+    }
+    if (customSizeApplied) {
+      return customSizeApplied.replace(/\s+/g, "").toLowerCase()
+    }
+    return null
+  }, [customSizeApplied, imageSizeSelection])
+
+  const isCustomSelection = useMemo(() => {
+    // 只有选择 "custom" 或者选择值是用户应用的自定义尺寸时，才显示自定义输入框
+    if (imageSizeSelection === "custom") return true
+    
+    // 如果当前选择值等于用户应用的自定义尺寸，也显示输入框
+    if (customAppliedValue && imageSizeSelection === customAppliedValue) return true
+    
+    return false
+  }, [imageSizeSelection, customAppliedValue])
 
   // OpenRouter states
   const [selectedOpenRouterModel, setSelectedOpenRouterModel] = useState<string>("google/gemini-2.5-flash-image")
   const [isOpenRouterModelPopoverOpen, setIsOpenRouterModelPopoverOpen] = useState(false)
+  const [openrouterSearch, setOpenrouterSearch] = useState("")
+  const openrouterListRef = useRef<HTMLDivElement>(null)
+  const openrouterPrevSearchRef = useRef("")
 
   const { getEnabledProviders: getEnabledProviderSettings, getProvider, settings } = useProviderSettings()
   const { toast } = useToast()
@@ -93,11 +147,155 @@ export function GenerationForm({
   const newapiProvider = getProvider("newapi")
   const openrouterProvider = getProvider("openrouter")
   const openaiProvider = getProvider("openai")
+  const updateFalModel = useCallback(
+    (modelId: string) => {
+      falModelByCategoryRef.current = {
+        ...falModelByCategoryRef.current,
+        [falCategory]: modelId,
+      }
+      setSelectedFalModel(modelId)
+    },
+    [falCategory],
+  )
+  // Restore last chosen FAL model per类别，在浏览器绘制前同步，避免切换时标签闪烁
+  useLayoutEffect(() => {
+    const saved = falModelByCategoryRef.current[falCategory]
+    if (saved && saved !== selectedFalModel) {
+      setSelectedFalModel(saved)
+    }
+  }, [falCategory, selectedFalModel])
   const openrouterEndpoint = openrouterProvider?.endpoint?.trim() || "https://openrouter.ai/api/v1"
+  const customSizeValue = useMemo(() => {
+    const width = Number.parseInt(customWidth.trim(), 10)
+    const height = Number.parseInt(customHeight.trim(), 10)
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return null
+    if (width < 64 || height < 64) return null
+    if (width > 4096 || height > 4096) return null
+    return `${width}x${height}`
+  }, [customWidth, customHeight])
+
+  const handleFalSearchChange = useCallback((value: string) => {
+    setFalSearch(value)
+    falPrevSearchRef.current = value.trim()
+  }, [])
+
+  const handleNewapiSearchChange = useCallback((value: string) => {
+    setNewapiSearch(value)
+    newapiPrevSearchRef.current = value.trim()
+  }, [])
+
+  const handleOpenrouterSearchChange = useCallback((value: string) => {
+    setOpenrouterSearch(value)
+    openrouterPrevSearchRef.current = value.trim()
+  }, [])
+
+  // 搜索词变化时自动滚动到顶部
+  useEffect(() => {
+    if (falListRef.current) {
+      falListRef.current.scrollTop = 0
+    }
+  }, [falSearch])
 
   useEffect(() => {
+    if (newapiListRef.current) {
+      newapiListRef.current.scrollTop = 0
+    }
+  }, [newapiSearch])
+
+  useEffect(() => {
+    if (openrouterListRef.current) {
+      openrouterListRef.current.scrollTop = 0
+    }
+  }, [openrouterSearch])
+
+  // Handle initial prompt from onboarding
+  useEffect(() => {
+    // Only set initial prompt if we haven't loaded preferences yet or if there was no stored prompt
+    if (initialPrompt && initialPrompt !== prompt && (!hasLoadedPreferences || !hasInitialPreferencesRef.current)) {
+      setPrompt(initialPrompt)
+      onPromptSet?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPrompt, hasLoadedPreferences])
+
+  const handleCustomWidthChange = useCallback(
+    (value: string) => {
+      setCustomWidth(value)
+      if (customApplyState !== "idle") {
+        setCustomApplyState("idle")
+      }
+      if (!value && !customHeight) {
+        setCustomSizeFeedback(null)
+      }
+    },
+    [customApplyState, customHeight],
+  )
+
+  const handleCustomHeightChange = useCallback(
+    (value: string) => {
+      setCustomHeight(value)
+      if (customApplyState !== "idle") {
+        setCustomApplyState("idle")
+      }
+      if (!customWidth && !value) {
+        setCustomSizeFeedback(null)
+      }
+    },
+    [customApplyState, customWidth],
+  )
+
+  const handleApplyCustomSize = useCallback(() => {
+    const width = Number.parseInt(customWidth.trim(), 10)
+    const height = Number.parseInt(customHeight.trim(), 10)
+
+    if (!Number.isFinite(width) || !Number.isFinite(height)) {
+      setCustomSizeFeedback({ type: "error", message: "请填写自定义宽度和高度（整数）。" })
+      setCustomApplyState("error")
+      toast({
+        title: "请输入宽高",
+        description: "请填写自定义宽度和高度（整数）。",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (width < 64 || height < 64 || width > 4096 || height > 4096) {
+      setCustomSizeFeedback({ type: "error", message: "宽高需在 64 - 4096 之间。" })
+      setCustomApplyState("error")
+      toast({
+        title: "尺寸超出范围",
+        description: "宽高需在 64 - 4096 之间。",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const value = `${width}x${height}`
+    const now = new Date().toLocaleTimeString()
+    console.info("[CustomSize] apply click", { value, now })
+
+    setImageSizeSelection(value)
+    setCustomSizeApplied(value)
+    setCustomSizeAppliedAt(now)
+    setCustomSizeFeedback({ type: "success", message: `当前尺寸：${value.replace("x", " × ")}` })
+    setCustomApplyState("success")
+    toast({
+      title: "已应用",
+      description: value.replace("x", " × "),
+    })
+  }, [customHeight, customWidth, toast])
+
+  useEffect(() => {
+    console.log("[GenerationForm] 🔵 LOAD PREFERENCES EFFECT START", {
+      window: typeof window !== "undefined",
+      isRestoring: isRestoringRef.current,
+    })
+    
     if (typeof window === "undefined") {
+      console.log("[GenerationForm] ⚪ Server-side, skipping")
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHasLoadedPreferences(true)
+      isRestoringRef.current = false
       return
     }
 
@@ -106,32 +304,54 @@ export function GenerationForm({
 
     try {
       const raw = window.localStorage.getItem(PREFERENCES_STORAGE_KEY)
+      console.log("[GenerationForm] 📖 Reading from localStorage:", raw ? "found" : "not found", raw)
       if (raw) {
         parsed = JSON.parse(raw) as Partial<GenerationPreferences>
+        console.log("[GenerationForm] ✅ Parsed preferences:", parsed)
       }
     } catch (error) {
-      console.warn("[GenerationForm] Failed to parse stored preferences", error)
+      console.warn("[GenerationForm] ❌ Failed to parse stored preferences", error)
     }
 
     if (parsed && typeof parsed === "object") {
       hadPreferences = true
+      console.log("[GenerationForm] 🔄 Restoring preferences, setting isRestoring=true")
+      isRestoringRef.current = true
 
+      if (typeof parsed.prompt === "string") {
+        console.log("[GenerationForm] 📝 Restoring prompt:", parsed.prompt)
+        restoredPromptRef.current = parsed.prompt
+        setPrompt(parsed.prompt)
+      }
       if (typeof parsed.providerId === "string") {
+        console.log("[GenerationForm] 🏢 Restoring provider:", parsed.providerId)
         setSelectedProvider(parsed.providerId)
       }
       if (typeof parsed.falModel === "string") {
-        setSelectedFalModel(parsed.falModel)
+        console.log("[GenerationForm] 🤖 Restoring FAL model:", parsed.falModel)
+        updateFalModel(parsed.falModel)
       }
       if (typeof parsed.newapiModel === "string") {
+        console.log("[GenerationForm] 🤖 Restoring NewAPI model:", parsed.newapiModel)
         setSelectedNewapiModel(parsed.newapiModel)
       }
       if (typeof parsed.openrouterModel === "string") {
+        console.log("[GenerationForm] 🤖 Restoring OpenRouter model:", parsed.openrouterModel)
         setSelectedOpenRouterModel(parsed.openrouterModel)
       }
       if (typeof parsed.imageSize === "string") {
-        setImageSize(parsed.imageSize)
+        console.log("[GenerationForm] 📐 Restoring image size:", parsed.imageSize)
+        const match = parsed.imageSize.match(/^\s*(\d+)\s*x\s*(\d+)\s*$/i)
+        if (match) {
+          setCustomWidth(match[1])
+          setCustomHeight(match[2])
+          setImageSizeSelection("custom")
+        } else {
+          setImageSizeSelection(parsed.imageSize)
+        }
       }
       if (typeof parsed.numImages === "number" && Number.isFinite(parsed.numImages)) {
+        console.log("[GenerationForm] 🔢 Restoring numImages:", parsed.numImages)
         setNumImages(Math.min(4, Math.max(1, Math.round(parsed.numImages))))
       }
       if (parsed.seed === null) {
@@ -151,25 +371,78 @@ export function GenerationForm({
       if (typeof parsed.newapiStyle === "string") {
         setNewapiStyle(parsed.newapiStyle)
       }
+    } else {
+      console.log("[GenerationForm] ⚠️ No preferences found in localStorage")
     }
 
     hasInitialPreferencesRef.current = hadPreferences
-    setHasLoadedPreferences(true)
-  }, [])
-
-  // Log provider changes
-  useEffect(() => {
-    console.log('[GenerationForm] Provider settings updated:', {
-      openrouter: {
-        enabled: openrouterProvider?.enabled,
-        hasApiKey: !!openrouterProvider?.apiKey,
-        endpoint: openrouterProvider?.endpoint,
+    console.log("[GenerationForm] 📌 hasInitialPreferencesRef.current =", hadPreferences)
+    
+    // 如果成功恢复了偏好设置，确保它们被保存（防止状态更新延迟导致丢失）
+    if (hadPreferences && parsed) {
+      // 使用恢复的值直接保存，不依赖状态更新
+      // 确保所有字段都存在
+      const completePrefs: GenerationPreferences = {
+        prompt: parsed.prompt ?? "",
+        providerId: parsed.providerId ?? "fal",
+        falModel: parsed.falModel ?? "fal-ai/flux/dev",
+        newapiModel: parsed.newapiModel ?? "dall-e-2",
+        openrouterModel: parsed.openrouterModel ?? "google/gemini-2.5-flash-image",
+        imageSize: parsed.imageSize ?? "square",
+        numImages: parsed.numImages ?? 1,
+        seed: parsed.seed ?? null,
+        safetyChecker: parsed.safetyChecker ?? true,
+        syncMode: parsed.syncMode ?? true,
+        newapiQuality: parsed.newapiQuality ?? "standard",
+        newapiStyle: parsed.newapiStyle ?? "vivid",
       }
-    })
-  }, [openrouterProvider])
-  const shouldLoadFalModels = selectedProvider === "fal"
-  const shouldLoadNewApiModels = selectedProvider === "newapi"
-  const shouldLoadOpenRouterModels = selectedProvider === "openrouter"
+      const frame = requestAnimationFrame(() => {
+        try {
+          console.log("[GenerationForm] 💾 Saving restored preferences immediately:", completePrefs)
+          window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(completePrefs))
+        } catch (error) {
+          console.warn("[GenerationForm] Failed to save restored preferences", error)
+        }
+      })
+      // 标记恢复过程完成
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          console.log("[GenerationForm] ✅ Finalizing: setting isRestoring=false, hasLoadedPreferences=true")
+          isRestoringRef.current = false
+          setHasLoadedPreferences(true)
+        })
+      })
+      return () => cancelAnimationFrame(frame)
+    } else {
+      // 没有偏好设置，直接完成
+      const finalize = () => {
+        console.log("[GenerationForm] ✅ Finalizing: setting isRestoring=false, hasLoadedPreferences=true")
+        isRestoringRef.current = false
+        setHasLoadedPreferences(true)
+      }
+      const frame = requestAnimationFrame(finalize)
+      return () => cancelAnimationFrame(frame)
+    }
+  }, [updateFalModel])
+
+
+  const providerOptions = useMemo(() => {
+    const enabledProviders = getEnabledProviderSettings()
+    return enabledProviders.map((provider) => ({
+      id: provider.id,
+      label: provider.name,
+    }))
+  }, [getEnabledProviderSettings])
+
+  const safeSelectedProvider = useMemo(() => {
+    if (providerOptions.length === 0) return ""
+    return providerOptions.some((option) => option.id === selectedProvider)
+      ? selectedProvider
+      : providerOptions[0].id
+  }, [providerOptions, selectedProvider])
+  const shouldLoadFalModels = safeSelectedProvider === "fal"
+  const shouldLoadNewApiModels = safeSelectedProvider === "newapi"
+  const shouldLoadOpenRouterModels = safeSelectedProvider === "openrouter"
   const {
     models: falModels,
     isLoading: isLoadingFalModels,
@@ -204,20 +477,6 @@ export function GenerationForm({
     endpoint: openrouterEndpoint,
     enabled: shouldLoadOpenRouterModels && openrouterProvider?.enabled,
   })
-  
-  // Debug log for OpenRouter
-  useEffect(() => {
-    if (selectedProvider === "openrouter") {
-      console.log('[GenerationForm] OpenRouter provider:', {
-        hasProvider: !!openrouterProvider,
-        enabled: openrouterProvider?.enabled,
-        hasApiKey: !!openrouterProvider?.apiKey,
-        hasEndpoint: !!openrouterProvider?.endpoint,
-        endpoint: openrouterProvider?.endpoint,
-        modelsCount: openrouterModels.length,
-      })
-    }
-  }, [selectedProvider, openrouterProvider, openrouterModels])
   const deferredFalModels = useDeferredValue(falModels)
   const hasFalModels = deferredFalModels.length > 0
   const selectedFalModelOption = useMemo(
@@ -309,40 +568,35 @@ export function GenerationForm({
     }
   }, [openrouterModelsUpdatedAt])
 
-  const providerOptions = useMemo(() => {
-    const enabledProviders = getEnabledProviderSettings()
-    return enabledProviders.map((provider) => ({
-      id: provider.id,
-      label: provider.name,
-    }))
-  }, [getEnabledProviderSettings])
-
-  useEffect(() => {
-    setSelectedProvider((prev) => {
-      if (providerOptions.length === 0) {
-        return ""
-      }
-      return providerOptions.some((option) => option.id === prev) ? prev : providerOptions[0].id
-    })
-  }, [providerOptions])
   const imageSizeOptions = useMemo(() => {
     // NewAPI size options based on model
-    if (selectedProvider === "newapi") {
+    if (safeSelectedProvider === "newapi") {
       if (selectedNewapiModel === "dall-e-2") {
         const options = [
           { value: "256x256", label: "小图 · 256 x 256" },
           { value: "512x512", label: "中图 · 512 x 512" },
           { value: "1024x1024", label: "大图 · 1024 x 1024" },
+          { value: "custom", label: "自定义尺寸" },
         ]
-        return mode === "img2img" ? [{ value: "auto", label: "与原图相同（推荐）" }, ...options] : options
+        if (customAppliedValue && !options.some((o) => o.value === customAppliedValue)) {
+          options.splice(options.length - 1, 0, { value: customAppliedValue, label: `自定义 · ${customAppliedValue.replace("x", " x ")}` })
+        }
+        return mode === "img2img"
+          ? [{ value: "auto", label: "与原图相同（推荐）" }, ...options]
+          : options
       }
       
       if (selectedNewapiModel === "dall-e-3") {
-        return [
+        const options = [
           { value: "1024x1024", label: "方形 · 1024 x 1024" },
           { value: "1792x1024", label: "横向 · 1792 x 1024" },
           { value: "1024x1792", label: "纵向 · 1024 x 1792" },
+          { value: "custom", label: "自定义尺寸" },
         ]
+        if (customAppliedValue && !options.some((o) => o.value === customAppliedValue)) {
+          options.splice(options.length - 1, 0, { value: customAppliedValue, label: `自定义 · ${customAppliedValue.replace("x", " x ")}` })
+        }
+        return options
       }
       
       if (selectedNewapiModel === "gpt-image-1") {
@@ -350,8 +604,14 @@ export function GenerationForm({
           { value: "1024x1024", label: "方形 · 1024 x 1024" },
           { value: "1536x1024", label: "横向 · 1536 x 1024" },
           { value: "1024x1536", label: "纵向 · 1024 x 1536" },
+          { value: "custom", label: "自定义尺寸" },
         ]
-        return mode === "img2img" ? [{ value: "auto", label: "与原图相同（推荐）" }, ...options] : options
+        if (customAppliedValue && !options.some((o) => o.value === customAppliedValue)) {
+          options.splice(options.length - 1, 0, { value: customAppliedValue, label: `自定义 · ${customAppliedValue.replace("x", " x ")}` })
+        }
+        return mode === "img2img"
+          ? [{ value: "auto", label: "与原图相同（推荐）" }, ...options]
+          : options
       }
     }
     
@@ -363,32 +623,47 @@ export function GenerationForm({
       { value: "portrait_4_3", label: "纵向 · 768 x 1024" },
       { value: "portrait_16_9", label: "纵向 · 720 x 1280" },
       { value: "512x512", label: "快速预览 · 512 x 512" },
+      { value: "custom", label: "自定义尺寸" },
     ]
+    if (customAppliedValue && !baseOptions.some((o) => o.value === customAppliedValue)) {
+      baseOptions.splice(baseOptions.length - 1, 0, {
+        value: customAppliedValue,
+        label: `自定义 · ${customAppliedValue.replace("x", " x ")}`,
+      })
+    }
 
     if (mode === "img2img") {
       return [{ value: "auto", label: "与原图相同（推荐）" }, ...baseOptions]
     }
 
     return baseOptions
-  }, [mode, selectedProvider, selectedNewapiModel])
+  }, [mode, safeSelectedProvider, selectedNewapiModel, customAppliedValue])
 
-  useEffect(() => {
-    setImageSize((current) => {
-      // Check if current size is valid for current provider/model
-      const validSizes = imageSizeOptions.map(opt => opt.value)
-      if (!validSizes.includes(current)) {
-        return imageSizeOptions[0]?.value || "square"
-      }
-      
-      if (mode === "img2img" && current === "square") {
-        return "auto"
-      }
-      if (mode === "txt2img" && current === "auto") {
-        return imageSizeOptions.find(opt => opt.value !== "auto")?.value || "square"
-      }
-      return current
-    })
-  }, [mode, imageSizeOptions])
+  const safeImageSizeSelection = useMemo(() => {
+    const validSizes = imageSizeOptions.map((opt) => opt.value)
+    let next = imageSizeSelection
+    if (!validSizes.includes(next)) {
+      next = imageSizeOptions[0]?.value || "square"
+    }
+    if (mode === "img2img" && next === "square") {
+      next = "auto"
+    }
+    if (mode === "txt2img" && next === "auto") {
+      next = imageSizeOptions.find((opt) => opt.value !== "auto")?.value || "square"
+    }
+    return next
+  }, [imageSizeOptions, imageSizeSelection, mode])
+
+  const effectiveImageSize = useMemo(() => {
+    const selection = safeImageSizeSelection
+    if (selection === "custom") {
+      return customSizeValue ?? "1024x1024"
+    }
+    if (/^\d+\s*x\s*\d+$/i.test(selection)) {
+      return selection.replace(/\s+/g, "").toLowerCase()
+    }
+    return selection
+  }, [safeImageSizeSelection, customSizeValue])
 
   useEffect(() => {
     if (!shouldLoadFalModels || !falProvider || falModels.length === 0) {
@@ -401,7 +676,10 @@ export function GenerationForm({
       return
     }
 
-    const prefetchPromise = prefetchFalModels(targetCategory, { apiKey: falProvider.apiKey })
+    const prefetchPromise = prefetchFalModels(targetCategory, {
+      apiKey: falProvider.apiKey,
+      enabled: falProvider?.enabled,
+    })
     prefetchedCategoriesRef.current.add(signature)
 
     prefetchPromise.catch(() => {
@@ -410,44 +688,67 @@ export function GenerationForm({
   }, [falModels.length, falProvider, mode, shouldLoadFalModels])
   
   // Auto-adjust NewAPI quality when model changes
-  useEffect(() => {
-    if (selectedProvider !== "newapi") return
-    
+  const safeNewapiQuality = useMemo(() => {
+    if (safeSelectedProvider !== "newapi") return newapiQuality
     if (selectedNewapiModel === "dall-e-3") {
-      if (newapiQuality !== "standard" && newapiQuality !== "hd") {
-        setNewapiQuality("standard")
-      }
-    } else if (selectedNewapiModel === "gpt-image-1") {
-      if (!["auto", "low", "medium", "high"].includes(newapiQuality)) {
-        setNewapiQuality("auto")
-      }
-    } else if (selectedNewapiModel === "dall-e-2") {
-      if (newapiQuality !== "standard") {
-        setNewapiQuality("standard")
-      }
+      return ["standard", "hd"].includes(newapiQuality) ? newapiQuality : "standard"
     }
-  }, [selectedProvider, selectedNewapiModel, newapiQuality])
+    if (selectedNewapiModel === "gpt-image-1") {
+      return ["auto", "low", "medium", "high"].includes(newapiQuality) ? newapiQuality : "auto"
+    }
+    if (selectedNewapiModel === "dall-e-2") {
+      return "standard"
+    }
+    return newapiQuality
+  }, [newapiQuality, selectedNewapiModel, safeSelectedProvider])
   
-  // Limit DALL-E 3 to 1 image
-  useEffect(() => {
-    if (selectedProvider === "newapi" && selectedNewapiModel === "dall-e-3") {
-      if (numImages > 1) {
-        setNumImages(1)
-      }
+  const safeNumImages = useMemo(() => {
+    if (safeSelectedProvider === "newapi" && selectedNewapiModel === "dall-e-3") {
+      return Math.min(numImages, 1)
     }
-  }, [selectedProvider, selectedNewapiModel, numImages])
+    return numImages
+  }, [numImages, selectedNewapiModel, safeSelectedProvider])
 
   useEffect(() => {
-    if (!hasLoadedPreferences || typeof window === "undefined") {
+    console.log("[GenerationForm] 💾 SAVE PREFERENCES EFFECT", {
+      hasLoadedPreferences,
+      window: typeof window !== "undefined",
+      isRestoring: isRestoringRef.current,
+      prompt,
+      hasInitialPreferences: hasInitialPreferencesRef.current,
+    })
+    
+    if (!hasLoadedPreferences || typeof window === "undefined" || isRestoringRef.current) {
+      console.log("[GenerationForm] ⏭️ Skipping save because:", {
+        hasLoadedPreferences,
+        windowUndefined: typeof window === "undefined",
+        isRestoring: isRestoringRef.current,
+      })
       return
     }
 
+    // 如果恢复过 prompt，但当前 prompt 为空，说明状态还在更新中，跳过保存
+    if (!prompt && restoredPromptRef.current) {
+      console.log("[GenerationForm] ⏭️ Skipping save: prompt is empty but was restored (state still updating)", {
+        restoredPrompt: restoredPromptRef.current,
+        currentPrompt: prompt,
+      })
+      return
+    }
+
+    // 如果 prompt 已经更新为恢复的值，清除恢复标记
+    if (restoredPromptRef.current && prompt === restoredPromptRef.current) {
+      console.log("[GenerationForm] ✅ Prompt state updated, clearing restoredPromptRef")
+      restoredPromptRef.current = null
+    }
+
     const payload: GenerationPreferences = {
-      providerId: selectedProvider,
+      prompt,
+      providerId: safeSelectedProvider,
       falModel: selectedFalModel,
       newapiModel: selectedNewapiModel,
       openrouterModel: selectedOpenRouterModel,
-      imageSize,
+      imageSize: effectiveImageSize,
       numImages: Math.min(4, Math.max(1, Math.round(numImages || 1))),
       seed: typeof seed === "number" && Number.isFinite(seed) ? seed : null,
       safetyChecker,
@@ -457,11 +758,13 @@ export function GenerationForm({
     }
 
     try {
+      console.log("[GenerationForm] 💾 Saving to localStorage:", payload)
       window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(payload))
+      console.log("[GenerationForm] ✅ Saved successfully")
     } catch (error) {
-      console.warn("[GenerationForm] Failed to persist preferences", error)
+      console.warn("[GenerationForm] ❌ Failed to persist preferences", error)
     }
-  }, [hasLoadedPreferences, selectedProvider, selectedFalModel, selectedNewapiModel, selectedOpenRouterModel, imageSize, numImages, seed, safetyChecker, syncMode, newapiQuality, newapiStyle])
+  }, [hasLoadedPreferences, prompt, safeSelectedProvider, selectedFalModel, selectedNewapiModel, selectedOpenRouterModel, effectiveImageSize, numImages, seed, safetyChecker, syncMode, newapiQuality, newapiStyle])
 
   const normalizeFalModelFromEndpoint = useCallback(() => {
     const providers = getEnabledProviderSettings()
@@ -482,14 +785,24 @@ export function GenerationForm({
   }, [getEnabledProviderSettings])
 
   const resetForm = useCallback(() => {
+    console.log("[GenerationForm] 🔴 RESET FORM CALLED - Stack trace:", new Error().stack)
     const providers = getEnabledProviderSettings()
     if (providers.length === 0) {
+      console.log("[GenerationForm] 🔴 Resetting (no providers)")
       setPrompt("")
-      setImageSize("square")
+      setImageSizeSelection("square")
+      setCustomWidth("")
+      setCustomHeight("")
+      setCustomSizeApplied(null)
+      setCustomSizeFeedback(null)
       setNumImages(1)
       setSeed(undefined)
       setSafetyChecker(true)
       setSyncMode(true)
+      falModelByCategoryRef.current = {
+        "text-to-image": "fal-ai/flux/dev",
+        "image-to-image": "fal-ai/flux/dev",
+      }
       setSelectedFalModel("fal-ai/flux/dev")
       setSelectedNewapiModel("dall-e-2")
       setNewapiQuality("standard")
@@ -504,19 +817,30 @@ export function GenerationForm({
       }
       return
     }
+    console.log("[GenerationForm] 🔴 Resetting form (with providers)")
     setPrompt("")
-    setImageSize("square")
+    setImageSizeSelection("square")
+    setCustomWidth("")
+    setCustomHeight("")
+    setCustomSizeApplied(null)
+    setCustomSizeFeedback(null)
     setNumImages(1)
     setSeed(undefined)
     setSafetyChecker(true)
     setSyncMode(true)
-    setSelectedFalModel(normalizeFalModelFromEndpoint())
+    const normalized = normalizeFalModelFromEndpoint()
+    falModelByCategoryRef.current = {
+      "text-to-image": normalized,
+      "image-to-image": normalized,
+    }
+    setSelectedFalModel(normalized)
     setSelectedNewapiModel("dall-e-2")
     setNewapiQuality("standard")
     setNewapiStyle("vivid")
     setSelectedProvider((prev) => (providers.some((provider) => provider.id === prev) ? prev : providers[0]?.id || ""))
     if (typeof window !== "undefined") {
       try {
+        console.log("[GenerationForm] 🔴 Removing preferences from localStorage")
         window.localStorage.removeItem(PREFERENCES_STORAGE_KEY)
       } catch (error) {
         console.warn("[GenerationForm] Failed to clear stored preferences", error)
@@ -524,66 +848,96 @@ export function GenerationForm({
     }
   }, [getEnabledProviderSettings, normalizeFalModelFromEndpoint])
 
-  useEffect(() => {
-    if (!hasLoadedPreferences || hasInitialPreferencesRef.current) {
-      return
-    }
-    const frame = requestAnimationFrame(() => {
-      resetForm()
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [hasLoadedPreferences, resetForm])
+  // 移除这个会导致重置的 useEffect
+  // 原因：它在偏好设置加载完成前就触发了 resetForm
 
   useEffect(() => {
+    console.log("[GenerationForm] 🔔 RESET SIGNAL EFFECT", {
+      resetSignal,
+      prevResetSignal: prevResetSignalRef.current,
+      hasInitialized: hasInitializedResetSignalRef.current,
+      hasLoadedPreferences,
+      isRestoring: isRestoringRef.current,
+    })
     if (resetSignal === undefined) return
+    
+    // 初始化：记录初始值，不触发重置
     if (!hasInitializedResetSignalRef.current) {
+      console.log("[GenerationForm] 🔔 Initializing resetSignal ref, recording initial value:", resetSignal)
       hasInitializedResetSignalRef.current = true
+      prevResetSignalRef.current = resetSignal
       return
     }
+    
+    // 如果正在恢复偏好设置，不要重置
+    if (isRestoringRef.current || !hasLoadedPreferences) {
+      console.log("[GenerationForm] 🔔 Skipping reset because restoring or not loaded yet")
+      return
+    }
+    
+    // 只有当 resetSignal 真正变化时才触发重置
+    if (prevResetSignalRef.current === resetSignal) {
+      console.log("[GenerationForm] 🔔 ResetSignal unchanged, skipping reset")
+      return
+    }
+    
+    console.log("[GenerationForm] 🔔 ResetSignal changed from", prevResetSignalRef.current, "to", resetSignal, ", calling resetForm")
+    prevResetSignalRef.current = resetSignal
     const frame = requestAnimationFrame(() => {
       resetForm()
     })
     return () => cancelAnimationFrame(frame)
-  }, [resetSignal, resetForm])
+  }, [resetSignal, resetForm, hasLoadedPreferences])
 
   useEffect(() => {
     if (!falModels.length) return
-    const frame = requestAnimationFrame(() => {
-      setSelectedFalModel((prev) => {
-        if (prev && falModels.some((model) => model.id === prev)) {
-          return prev
-        }
 
-        if (hasInitialPreferencesRef.current && selectedProvider === "fal") {
-          const storedFalModel = (() => {
-            try {
-              if (typeof window === "undefined") {
-                return null
-              }
-              const raw = window.localStorage.getItem(PREFERENCES_STORAGE_KEY)
-              if (!raw) return null
-              const parsed = JSON.parse(raw) as Partial<GenerationPreferences>
-              return parsed?.falModel ?? null
-            } catch {
-              return null
-            }
-          })()
+    const currentPreferred = falModelByCategoryRef.current[falCategory] ?? selectedFalModel
+    if (currentPreferred && falModels.some((model) => model.id === currentPreferred)) {
+      if (currentPreferred !== selectedFalModel) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        updateFalModel(currentPreferred)
+      }
+      return
+    }
 
-          if (storedFalModel && falModels.some((model) => model.id === storedFalModel)) {
-            return storedFalModel
+    let fallback: string | null = null
+
+    if (hasInitialPreferencesRef.current && safeSelectedProvider === "fal") {
+      const storedFalModel = (() => {
+        try {
+          if (typeof window === "undefined") {
+            return null
           }
+          const raw = window.localStorage.getItem(PREFERENCES_STORAGE_KEY)
+          if (!raw) return null
+          const parsed = JSON.parse(raw) as Partial<GenerationPreferences>
+          return parsed?.falModel ?? null
+        } catch {
+          return null
         }
+      })()
 
-        const modelFromEndpoint = normalizeFalModelFromEndpoint()
-        if (falModels.some((model) => model.id === modelFromEndpoint)) {
-          return modelFromEndpoint
-        }
+      if (storedFalModel && falModels.some((model) => model.id === storedFalModel)) {
+        fallback = storedFalModel
+      }
+    }
 
-        return falModels[0]?.id ?? "fal-ai/flux/dev"
-      })
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [falModels, normalizeFalModelFromEndpoint, falCategory, selectedProvider])
+    if (!fallback) {
+      const modelFromEndpoint = normalizeFalModelFromEndpoint()
+      if (falModels.some((model) => model.id === modelFromEndpoint)) {
+        fallback = modelFromEndpoint
+      }
+    }
+
+    if (!fallback) {
+      fallback = falModels[0]?.id ?? "fal-ai/flux/dev"
+    }
+
+    if (fallback) {
+      updateFalModel(fallback)
+    }
+  }, [falModels, normalizeFalModelFromEndpoint, falCategory, safeSelectedProvider, selectedFalModel, updateFalModel])
 
   useEffect(() => {
     if (!newapiModels.length) return
@@ -633,7 +987,7 @@ export function GenerationForm({
     }
 
     const enabledProviders = getEnabledProviderSettings()
-    const provider = enabledProviders.find((p) => p.id === selectedProvider)
+    const provider = enabledProviders.find((p) => p.id === safeSelectedProvider)
 
     if (!provider) {
       toast({
@@ -688,14 +1042,14 @@ export function GenerationForm({
 
     await onGenerate(provider, {
       prompt,
-      imageSize,
-      numImages,
+      imageSize: effectiveImageSize,
+      numImages: safeNumImages,
       seed,
       safetyChecker,
       syncMode,
       images: mode === "img2img" ? images : undefined,
       modelId,
-      quality: provider.id === "newapi" ? newapiQuality : undefined,
+      quality: provider.id === "newapi" ? safeNewapiQuality : undefined,
       style: provider.id === "newapi" ? newapiStyle : undefined,
       openaiApiKey,
     })
@@ -747,7 +1101,7 @@ export function GenerationForm({
           <section className="bg-card/50 p-4 border border-border backdrop-blur-sm">
             <header className="flex items-center justify-between pb-4">
               <h3 className="text-xs font-mono text-primary">MODEL_SELECTION</h3>
-              {selectedProvider === "fal" && (
+              {safeSelectedProvider === "fal" && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500">{falModels.length} 个可用模型</span>
                   {falModelsUpdatedAtLabel ? (
@@ -768,7 +1122,7 @@ export function GenerationForm({
                   </Button>
                 </div>
               )}
-              {selectedProvider === "newapi" && (
+              {safeSelectedProvider === "newapi" && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500">
                     {isLoadingNewApiModels ? "加载中..." : `${newapiModels.length} 个可用模型`}
@@ -791,7 +1145,7 @@ export function GenerationForm({
                   </Button>
                 </div>
               )}
-              {selectedProvider === "openrouter" && (
+              {safeSelectedProvider === "openrouter" && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500">
                     {isLoadingOpenRouterModels ? "加载中..." : `${openrouterModels.length} 个可用模型`}
@@ -836,7 +1190,7 @@ export function GenerationForm({
                   AI 供应商
                 </Label>
                 <Select
-                  value={selectedProvider}
+                  value={safeSelectedProvider}
                   onValueChange={setSelectedProvider}
                   disabled={providerOptions.length === 0}
                 >
@@ -856,7 +1210,7 @@ export function GenerationForm({
                 </Select>
               </div>
 
-              {selectedProvider === "fal" ? (
+              {safeSelectedProvider === "fal" ? (
                 <div className="space-y-2">
                   <Label htmlFor="fal-model" className="text-sm font-medium text-gray-900">
                     FAL 模型
@@ -868,21 +1222,28 @@ export function GenerationForm({
                         variant="outline"
                         role="combobox"
                         aria-expanded={isFalModelPopoverOpen}
-                        className="flex h-10 w-full items-center justify-between gap-4 rounded-lg border-2 border-gray-200 bg-white px-3 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-10 w-full min-w-0 items-center justify-between gap-4 rounded-lg border-2 border-gray-200 bg-white px-3 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <span className="text-left">{falModelButtonLabel}</span>
+                        <span className="text-left truncate" title={falModelButtonLabel}>
+                          {falModelButtonLabel}
+                        </span>
                         <ChevronsUpDown className="h-4 w-4 text-gray-500" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[400px] p-0 shadow-lg" align="start">
-                      <Command loop className="rounded-lg border-2 border-gray-200">
+                      <Command
+                        loop
+                        className="rounded-lg border-2 border-gray-200"
+                      >
                         <div className="border-b border-gray-100 px-3 py-2">
                           <CommandInput 
                             placeholder="搜索模型名称或 ID…" 
                             className="border-none focus:ring-0"
+                            value={falSearch}
+                            onValueChange={handleFalSearchChange}
                           />
                         </div>
-                        <CommandList className="max-h-80 overflow-y-auto p-2">
+                        <CommandList ref={falListRef} className="max-h-80 overflow-y-auto p-2">
                           {isLoadingFalModels && !hasFalModels ? (
                             <div className="py-8 text-center text-sm text-gray-500">
                               <div className="mb-2">正在加载模型列表…</div>
@@ -898,7 +1259,7 @@ export function GenerationForm({
                                     key={model.id}
                                     value={`${model.title} ${model.id} ${(model.tags || []).join(" ")}`}
                                     onSelect={() => {
-                                      setSelectedFalModel(model.id)
+                                      updateFalModel(model.id)
                                       setIsFalModelPopoverOpen(false)
                                     }}
                                     className={cn(
@@ -930,7 +1291,7 @@ export function GenerationForm({
                 </div>
               ) : null}
               
-              {selectedProvider === "newapi" ? (
+              {safeSelectedProvider === "newapi" ? (
                 <div className="space-y-2">
                   <Label htmlFor="newapi-model" className="text-sm font-medium text-gray-900">
                     NewAPI 模型
@@ -942,21 +1303,28 @@ export function GenerationForm({
                         variant="outline"
                         role="combobox"
                         aria-expanded={isNewapiModelPopoverOpen}
-                        className="flex w-full items-center justify-between gap-4 rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex w-full min-w-0 items-center justify-between gap-4 rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <span className="text-left">{newapiModelButtonLabel}</span>
+                        <span className="text-left truncate" title={newapiModelButtonLabel}>
+                          {newapiModelButtonLabel}
+                        </span>
                         <ChevronsUpDown className="h-4 w-4 text-gray-500" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[400px] p-0 shadow-lg" align="start">
-                      <Command loop className="rounded-lg border-2 border-gray-200">
+                      <Command
+                        loop
+                        className="rounded-lg border-2 border-gray-200"
+                      >
                         <div className="border-b border-gray-100 px-3 py-2">
                           <CommandInput 
                             placeholder="搜索模型名称或渠道…" 
                             className="border-none focus:ring-0"
+                            value={newapiSearch}
+                            onValueChange={handleNewapiSearchChange}
                           />
                         </div>
-                        <CommandList className="max-h-80 overflow-y-auto p-2">
+                        <CommandList ref={newapiListRef} className="max-h-80 overflow-y-auto p-2">
                           {isLoadingNewApiModels && !hasNewapiModels ? (
                             <div className="py-8 text-center text-sm text-gray-500">
                               <div className="mb-2">正在加载模型列表…</div>
@@ -1036,7 +1404,7 @@ export function GenerationForm({
                 </div>
               ) : null}
 
-              {selectedProvider === "openrouter" ? (
+              {safeSelectedProvider === "openrouter" ? (
                 <div className="space-y-2">
                   <Label htmlFor="openrouter-model" className="text-sm font-medium text-gray-900">
                     OpenRouter 模型
@@ -1048,21 +1416,28 @@ export function GenerationForm({
                         variant="outline"
                         role="combobox"
                         aria-expanded={isOpenRouterModelPopoverOpen}
-                        className="flex w-full items-center justify-between gap-4 rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex w-full min-w-0 items-center justify-between gap-4 rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <span className="text-left">{openrouterModelButtonLabel}</span>
+                        <span className="text-left truncate" title={openrouterModelButtonLabel}>
+                          {openrouterModelButtonLabel}
+                        </span>
                         <ChevronsUpDown className="h-4 w-4 text-gray-500" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[400px] p-0 shadow-lg" align="start">
-                      <Command loop className="rounded-lg border-2 border-gray-200">
+                      <Command
+                        loop
+                        className="rounded-lg border-2 border-gray-200"
+                      >
                         <div className="border-b border-gray-100 px-3 py-2">
                           <CommandInput 
                             placeholder="搜索模型名称…" 
                             className="border-none focus:ring-0"
+                            value={openrouterSearch}
+                            onValueChange={handleOpenrouterSearchChange}
                           />
                         </div>
-                        <CommandList className="max-h-80 overflow-y-auto p-2">
+                        <CommandList ref={openrouterListRef} className="max-h-80 overflow-y-auto p-2">
                           {isLoadingOpenRouterModels && !hasOpenRouterModels ? (
                             <div className="py-8 text-center text-sm text-gray-500">
                               <div className="mb-2">正在加载模型列表…</div>
@@ -1113,14 +1488,14 @@ export function GenerationForm({
               ) : null}
             </div>
             
-            {selectedProvider === "newapi" ? (
+            {safeSelectedProvider === "newapi" ? (
               <div className="mt-4 grid gap-4 border-t border-gray-100 pt-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="newapi-quality" className="text-sm font-medium text-gray-900">
                     图片质量
                   </Label>
                   <Select
-                    value={newapiQuality}
+                    value={safeNewapiQuality}
                     onValueChange={setNewapiQuality}
                   >
                     <SelectTrigger id="newapi-quality">
@@ -1171,7 +1546,7 @@ export function GenerationForm({
               </div>
             ) : null}
           </section>
-
+      
           <section className="rounded-lg border border-gray-200 bg-white p-4">
             <header className="pb-4">
               <h3 className="text-sm font-semibold text-gray-900">图片参数</h3>
@@ -1183,9 +1558,11 @@ export function GenerationForm({
                   图片尺寸
                 </Label>
                 <Select
-                  value={imageSize}
-                  onValueChange={setImageSize}
-                  disabled={selectedProvider === "" || providerOptions.length === 0}
+                  value={safeImageSizeSelection}
+                  onValueChange={(val) => {
+                    setImageSizeSelection(val)
+                  }}
+                  disabled={safeSelectedProvider === "" || providerOptions.length === 0}
                 >
                   <SelectTrigger id="size">
                     <SelectValue placeholder="选择图片尺寸" />
@@ -1198,6 +1575,84 @@ export function GenerationForm({
                     ))}
                   </SelectContent>
                 </Select>
+                {isCustomSelection && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-gray-700">自定义尺寸</Label>
+                      {customApplyState === "success" && customSizeApplied ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                          <span aria-hidden>✅</span>
+                          <span>已应用：{customSizeApplied.replace("x", " × ")}</span>
+                        </span>
+                      ) : customApplyState === "error" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                          <span aria-hidden>⚠️</span>
+                          <span>请检查输入</span>
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="grid grid-cols-[minmax(96px,1fr)_auto_minmax(96px,1fr)_minmax(110px,1fr)] items-center gap-2">
+                      <Input
+                        type="number"
+                        min={64}
+                        max={4096}
+                        placeholder="宽"
+                        value={customWidth}
+                        onChange={(e) => handleCustomWidthChange(e.target.value)}
+                        className={`w-full ${
+                          customApplyState === "success"
+                            ? "border-green-500"
+                            : customApplyState === "error"
+                            ? "border-rose-500"
+                            : ""
+                        }`}
+                      />
+                      <span className="text-sm text-gray-500 text-center">x</span>
+                      <Input
+                        type="number"
+                        min={64}
+                        max={4096}
+                        placeholder="高"
+                        value={customHeight}
+                        onChange={(e) => handleCustomHeightChange(e.target.value)}
+                        className={`w-full ${
+                          customApplyState === "success"
+                            ? "border-green-500"
+                            : customApplyState === "error"
+                            ? "border-rose-500"
+                            : ""
+                        }`}
+                      />
+                      <Button
+                        variant="default"
+                        type="button"
+                        onClick={handleApplyCustomSize}
+                        className={`w-full transition-colors font-semibold pointer-events-auto relative z-10 ${
+                          customApplyState === "success"
+                            ? "bg-green-600 text-white border-green-600 hover:bg-green-500"
+                            : customApplyState === "error"
+                            ? "border-rose-500 text-rose-600 hover:bg-rose-50"
+                            : "bg-blue-500 text-white hover:bg-blue-600"
+                        }`}
+                      >
+                        {customApplyState === "success" ? "已应用" : "应用"}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-500">64 - 4096 正整数，例如 1400 x 900</p>
+                    <p
+                      role="status"
+                      className={`text-xs ${
+                        customSizeFeedback
+                          ? customSizeFeedback.type === "success"
+                            ? "text-green-600 font-semibold"
+                            : "text-rose-600 font-semibold"
+                          : "text-gray-500"
+                      }`}
+                    >
+                      {customSizeFeedback ? customSizeFeedback.message : ""}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -1207,13 +1662,13 @@ export function GenerationForm({
                 <Input
                   id="num_images"
                   type="number"
-                  value={numImages}
+                  value={safeNumImages}
                   onChange={(e) => setNumImages(Number(e.target.value))}
                   min={1}
-                  max={selectedProvider === "newapi" && selectedNewapiModel === "dall-e-3" ? 1 : 4}
-                  disabled={selectedProvider === "newapi" && selectedNewapiModel === "dall-e-3"}
+                  max={safeSelectedProvider === "newapi" && selectedNewapiModel === "dall-e-3" ? 1 : 4}
+                  disabled={safeSelectedProvider === "newapi" && selectedNewapiModel === "dall-e-3"}
                 />
-                {selectedProvider === "newapi" && selectedNewapiModel === "dall-e-3" && (
+                {safeSelectedProvider === "newapi" && selectedNewapiModel === "dall-e-3" && (
                   <p className="text-xs text-amber-600">DALL·E 3 仅支持单张图片生成</p>
                 )}
               </div>
@@ -1268,6 +1723,8 @@ export function GenerationForm({
           {isGenerating ? "PROCESSING_DATA..." : "INITIALIZE_GENERATION"}
         </Button>
       </div>
+
+
     </section>
   )
 }
