@@ -29,23 +29,6 @@ import { cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 
-const PREFERENCES_STORAGE_KEY = "generation-form-preferences"
-
-type GenerationPreferences = {
-  prompt?: string
-  providerId: string
-  falModel: string
-  newapiModel: string
-  openrouterModel: string
-  imageSize: string
-  numImages: number
-  seed: number | null
-  safetyChecker: boolean
-  syncMode: boolean
-  newapiQuality: string
-  newapiStyle: string
-}
-
 interface GenerationFormProps {
   mode: "img2img" | "txt2img"
   images?: File[]
@@ -87,12 +70,8 @@ export function GenerationForm({
   const falListRef = useRef<HTMLDivElement>(null)
   const falPrevSearchRef = useRef("")
   const prefetchedCategoriesRef = useRef<Set<string>>(new Set())
-  const hasInitialPreferencesRef = useRef(false)
-  const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false)
   const hasInitializedResetSignalRef = useRef(false)
   const prevResetSignalRef = useRef<number | undefined>(undefined)
-  const isRestoringRef = useRef(true)
-  const restoredPromptRef = useRef<string | null>(null)
   
   // NewAPI states
   const [selectedNewapiModel, setSelectedNewapiModel] = useState<string>("dall-e-2")
@@ -209,13 +188,12 @@ export function GenerationForm({
 
   // Handle initial prompt from onboarding
   useEffect(() => {
-    // Only set initial prompt if we haven't loaded preferences yet or if there was no stored prompt
-    if (initialPrompt && initialPrompt !== prompt && (!hasLoadedPreferences || !hasInitialPreferencesRef.current)) {
+    if (initialPrompt && initialPrompt !== prompt) {
       setPrompt(initialPrompt)
       onPromptSet?.()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialPrompt, hasLoadedPreferences])
+  }, [initialPrompt])
 
   const handleCustomWidthChange = useCallback(
     (value: string) => {
@@ -283,125 +261,6 @@ export function GenerationForm({
       description: value.replace("x", " × "),
     })
   }, [customHeight, customWidth, toast])
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setHasLoadedPreferences(true)
-      isRestoringRef.current = false
-      return
-    }
-
-    let parsed: Partial<GenerationPreferences> | null = null
-    let hadPreferences = false
-
-    try {
-      const raw = window.localStorage.getItem(PREFERENCES_STORAGE_KEY)
-      if (raw) {
-        parsed = JSON.parse(raw) as Partial<GenerationPreferences>
-      }
-    } catch (error) {
-      console.warn("[GenerationForm] Failed to parse stored preferences", error)
-    }
-
-    if (parsed && typeof parsed === "object") {
-      hadPreferences = true
-      isRestoringRef.current = true
-
-      if (typeof parsed.prompt === "string") {
-        restoredPromptRef.current = parsed.prompt
-        setPrompt(parsed.prompt)
-      }
-      if (typeof parsed.providerId === "string") {
-        setSelectedProvider(parsed.providerId)
-      }
-      if (typeof parsed.falModel === "string") {
-        updateFalModel(parsed.falModel)
-      }
-      if (typeof parsed.newapiModel === "string") {
-        setSelectedNewapiModel(parsed.newapiModel)
-      }
-      if (typeof parsed.openrouterModel === "string") {
-        setSelectedOpenRouterModel(parsed.openrouterModel)
-      }
-      if (typeof parsed.imageSize === "string") {
-        const match = parsed.imageSize.match(/^\s*(\d+)\s*x\s*(\d+)\s*$/i)
-        if (match) {
-          setCustomWidth(match[1])
-          setCustomHeight(match[2])
-          setImageSizeSelection("custom")
-        } else {
-          setImageSizeSelection(parsed.imageSize)
-        }
-      }
-      if (typeof parsed.numImages === "number" && Number.isFinite(parsed.numImages)) {
-        setNumImages(Math.min(4, Math.max(1, Math.round(parsed.numImages))))
-      }
-      if (parsed.seed === null) {
-        setSeed(undefined)
-      } else if (typeof parsed.seed === "number" && Number.isFinite(parsed.seed)) {
-        setSeed(parsed.seed)
-      }
-      if (typeof parsed.safetyChecker === "boolean") {
-        setSafetyChecker(parsed.safetyChecker)
-      }
-      if (typeof parsed.syncMode === "boolean") {
-        setSyncMode(parsed.syncMode)
-      }
-      if (typeof parsed.newapiQuality === "string") {
-        setNewapiQuality(parsed.newapiQuality)
-      }
-      if (typeof parsed.newapiStyle === "string") {
-        setNewapiStyle(parsed.newapiStyle)
-      }
-    }
-
-    hasInitialPreferencesRef.current = hadPreferences
-    
-    // 如果成功恢复了偏好设置，确保它们被保存（防止状态更新延迟导致丢失）
-    if (hadPreferences && parsed) {
-      // 使用恢复的值直接保存，不依赖状态更新
-      // 确保所有字段都存在
-      const completePrefs: GenerationPreferences = {
-        prompt: parsed.prompt ?? "",
-        providerId: parsed.providerId ?? "fal",
-        falModel: parsed.falModel ?? "fal-ai/flux/dev",
-        newapiModel: parsed.newapiModel ?? "dall-e-2",
-        openrouterModel: parsed.openrouterModel ?? "google/gemini-2.5-flash-image",
-        imageSize: parsed.imageSize ?? "square",
-        numImages: parsed.numImages ?? 1,
-        seed: parsed.seed ?? null,
-        safetyChecker: parsed.safetyChecker ?? true,
-        syncMode: parsed.syncMode ?? true,
-        newapiQuality: parsed.newapiQuality ?? "standard",
-        newapiStyle: parsed.newapiStyle ?? "vivid",
-      }
-      const frame = requestAnimationFrame(() => {
-        try {
-          window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(completePrefs))
-        } catch (error) {
-          console.warn("[GenerationForm] Failed to save restored preferences", error)
-        }
-      })
-      // 标记恢复过程完成
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          isRestoringRef.current = false
-          setHasLoadedPreferences(true)
-        })
-      })
-      return () => cancelAnimationFrame(frame)
-    } else {
-      // 没有偏好设置，直接完成
-      const finalize = () => {
-        isRestoringRef.current = false
-        setHasLoadedPreferences(true)
-      }
-      const frame = requestAnimationFrame(finalize)
-      return () => cancelAnimationFrame(frame)
-    }
-  }, [updateFalModel])
-
 
   const providerOptions = useMemo(() => {
     const enabledProviders = getEnabledProviderSettings()
@@ -686,43 +545,6 @@ export function GenerationForm({
     return numImages
   }, [numImages, selectedNewapiModel, safeSelectedProvider])
 
-  useEffect(() => {
-    if (!hasLoadedPreferences || typeof window === "undefined" || isRestoringRef.current) {
-      return
-    }
-
-    // 如果恢复过 prompt，但当前 prompt 为空，说明状态还在更新中，跳过保存
-    if (!prompt && restoredPromptRef.current) {
-      return
-    }
-
-    // 如果 prompt 已经更新为恢复的值，清除恢复标记
-    if (restoredPromptRef.current && prompt === restoredPromptRef.current) {
-      restoredPromptRef.current = null
-    }
-
-    const payload: GenerationPreferences = {
-      prompt,
-      providerId: safeSelectedProvider,
-      falModel: selectedFalModel,
-      newapiModel: selectedNewapiModel,
-      openrouterModel: selectedOpenRouterModel,
-      imageSize: effectiveImageSize,
-      numImages: Math.min(4, Math.max(1, Math.round(numImages || 1))),
-      seed: typeof seed === "number" && Number.isFinite(seed) ? seed : null,
-      safetyChecker,
-      syncMode,
-      newapiQuality,
-      newapiStyle,
-    }
-
-    try {
-      window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(payload))
-    } catch (error) {
-      console.warn("[GenerationForm] Failed to persist preferences", error)
-    }
-  }, [hasLoadedPreferences, prompt, safeSelectedProvider, selectedFalModel, selectedNewapiModel, selectedOpenRouterModel, effectiveImageSize, numImages, seed, safetyChecker, syncMode, newapiQuality, newapiStyle])
-
   const normalizeFalModelFromEndpoint = useCallback(() => {
     const providers = getEnabledProviderSettings()
     const falProvider = providers.find((provider) => provider.id === "fal")
@@ -763,13 +585,6 @@ export function GenerationForm({
       setNewapiQuality("standard")
       setNewapiStyle("vivid")
       setSelectedProvider("")
-      if (typeof window !== "undefined") {
-        try {
-          window.localStorage.removeItem(PREFERENCES_STORAGE_KEY)
-        } catch (error) {
-          console.warn("[GenerationForm] Failed to clear stored preferences", error)
-        }
-      }
       return
     }
     setPrompt("")
@@ -792,17 +607,7 @@ export function GenerationForm({
     setNewapiQuality("standard")
     setNewapiStyle("vivid")
     setSelectedProvider((prev) => (providers.some((provider) => provider.id === prev) ? prev : providers[0]?.id || ""))
-    if (typeof window !== "undefined") {
-      try {
-        window.localStorage.removeItem(PREFERENCES_STORAGE_KEY)
-      } catch (error) {
-        console.warn("[GenerationForm] Failed to clear stored preferences", error)
-      }
-    }
   }, [getEnabledProviderSettings, normalizeFalModelFromEndpoint])
-
-  // 移除这个会导致重置的 useEffect
-  // 原因：它在偏好设置加载完成前就触发了 resetForm
 
   useEffect(() => {
     if (resetSignal === undefined) return
@@ -811,11 +616,6 @@ export function GenerationForm({
     if (!hasInitializedResetSignalRef.current) {
       hasInitializedResetSignalRef.current = true
       prevResetSignalRef.current = resetSignal
-      return
-    }
-    
-    // 如果正在恢复偏好设置，不要重置
-    if (isRestoringRef.current || !hasLoadedPreferences) {
       return
     }
     
@@ -829,7 +629,7 @@ export function GenerationForm({
       resetForm()
     })
     return () => cancelAnimationFrame(frame)
-  }, [resetSignal, resetForm, hasLoadedPreferences])
+  }, [resetSignal, resetForm])
 
   useEffect(() => {
     if (!falModels.length) return
@@ -845,31 +645,9 @@ export function GenerationForm({
 
     let fallback: string | null = null
 
-    if (hasInitialPreferencesRef.current && safeSelectedProvider === "fal") {
-      const storedFalModel = (() => {
-        try {
-          if (typeof window === "undefined") {
-            return null
-          }
-          const raw = window.localStorage.getItem(PREFERENCES_STORAGE_KEY)
-          if (!raw) return null
-          const parsed = JSON.parse(raw) as Partial<GenerationPreferences>
-          return parsed?.falModel ?? null
-        } catch {
-          return null
-        }
-      })()
-
-      if (storedFalModel && falModels.some((model) => model.id === storedFalModel)) {
-        fallback = storedFalModel
-      }
-    }
-
-    if (!fallback) {
-      const modelFromEndpoint = normalizeFalModelFromEndpoint()
-      if (falModels.some((model) => model.id === modelFromEndpoint)) {
-        fallback = modelFromEndpoint
-      }
+    const modelFromEndpoint = normalizeFalModelFromEndpoint()
+    if (falModels.some((model) => model.id === modelFromEndpoint)) {
+      fallback = modelFromEndpoint
     }
 
     if (!fallback) {
