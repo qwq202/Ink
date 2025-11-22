@@ -285,6 +285,7 @@ export async function GET(request: Request) {
     searchQuery: searchQuery ?? null,
     requestedLimit,
     hasAuthorization: Boolean(authorizationHeader),
+    authHeaderPreview: authorizationHeader ? `${authorizationHeader.slice(0, 4)}...len${authorizationHeader.length}` : null,
     cacheKey,
     forceRefresh,
   }

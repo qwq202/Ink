@@ -34,8 +34,24 @@ export function useTaskQueue(maxConcurrent = 2) {
     return queueRef.current.addTask(name, execute, options)
   }
 
+  const cancelTask = (taskId: string): boolean => {
+    if (!queueRef.current) {
+      return false
+    }
+    return queueRef.current.cancelTask(taskId)
+  }
+
+  const getTask = (taskId: string): Task | undefined => {
+    if (!queueRef.current) {
+      return undefined
+    }
+    return queueRef.current.getTask(taskId)
+  }
+
   return {
     addTask,
+    cancelTask,
+    getTask,
     tasks,
     pending,
     running,

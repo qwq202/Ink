@@ -143,6 +143,14 @@ export function useFalModels(options: UseFalModelsOptions = {}) {
           }
         }
 
+        // 如果本地没有缓存且未提供 Key，就不去请求远端，避免无意义的 401
+        if (!apiKey) {
+          setIsLoading(false)
+          setIsRefreshing(false)
+          setError(enabled ? "请先启用并填写 FAL Admin Key，再获取模型列表。" : null)
+          return
+        }
+
         setIsLoading(true)
         if (forceRefresh) {
           setIsRefreshing(true)
@@ -227,13 +235,19 @@ export function useFalModels(options: UseFalModelsOptions = {}) {
 
 export function prefetchFalModels(
   category: string,
-  options: { apiKey?: string; search?: string } = {},
+  options: { apiKey?: string; search?: string; enabled?: boolean } = {},
 ): Promise<void> {
   if (typeof window === "undefined") {
     return Promise.resolve()
   }
 
-  const { apiKey, search } = options
+  const { apiKey, search, enabled = true } = options
+
+  // 只有在供应商已启用且提供了 Key 时才预取
+  if (!enabled || !apiKey) {
+    return Promise.resolve()
+  }
+
   const cacheKey = createCacheKey(category, search, apiKey)
 
   if (memoryCache.has(cacheKey) || readCache(cacheKey)) {

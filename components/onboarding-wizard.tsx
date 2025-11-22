@@ -63,32 +63,34 @@ export function OnboardingWizard({ onComplete, onOpenSettings, onSelectExample }
       content: (
         <div className="space-y-3">
           <p className="text-sm text-gray-600">点击任意示例卡片，自动填充到表单中：</p>
-          <div className="grid gap-2 max-h-[300px] overflow-y-auto">
-            {examplePrompts.map((example, index) => (
-              <Card
-                key={index}
-                className="cursor-pointer hover:border-primary transition-colors"
-                onClick={() => {
-                  onSelectExample?.(example)
-                  setCurrentStep(3)
-                }}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-medium text-primary">{example.category}</span>
-                        <span className="text-xs text-gray-500">{example.description}</span>
+          <div className="max-w-xl mx-auto w-full">
+            <div className="grid gap-2 max-h-[320px] overflow-y-auto overflow-x-hidden pr-2 scrollbar-thin">
+              {examplePrompts.map((example, index) => (
+                <Card
+                  key={index}
+                  className="cursor-pointer hover:border-primary transition-colors"
+                  onClick={() => {
+                    onSelectExample?.(example)
+                    setCurrentStep(3)
+                  }}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-primary">{example.category}</span>
+                          <span className="text-xs text-gray-500">{example.description}</span>
+                        </div>
+                        <p className="text-sm text-gray-900 break-words line-clamp-2">
+                          {example.prompt}
+                        </p>
                       </div>
-                      <p className="text-sm text-gray-900 truncate" title={example.prompt}>
-                        {example.prompt}
-                      </p>
+                      <ArrowRight className="h-4 w-4 text-gray-400 shrink-0 mt-1" />
                     </div>
-                    <ArrowRight className="h-4 w-4 text-gray-400 shrink-0" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
       ),
@@ -122,7 +124,14 @@ export function OnboardingWizard({ onComplete, onOpenSettings, onSelectExample }
   }
 
   return (
-    <Dialog open={true} onOpenChange={() => {}}>
+    <Dialog
+      open={true}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          onComplete()
+        }
+      }}
+    >
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{steps[currentStep].title}</DialogTitle>
@@ -134,12 +143,15 @@ export function OnboardingWizard({ onComplete, onOpenSettings, onSelectExample }
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {steps.map((_, index) => (
-              <div
+              <button
                 key={index}
+                type="button"
+                onClick={() => setCurrentStep(index)}
                 className={cn(
-                  "h-2 w-2 rounded-full transition-colors",
-                  index === currentStep ? "bg-primary" : "bg-gray-300",
+                  "h-2 w-2 rounded-full transition-all cursor-pointer hover:scale-125",
+                  index === currentStep ? "bg-primary" : "bg-gray-300 hover:bg-gray-400",
                 )}
+                aria-label={`跳转到步骤 ${index + 1}`}
               />
             ))}
           </div>
@@ -158,4 +170,3 @@ export function OnboardingWizard({ onComplete, onOpenSettings, onSelectExample }
     </Dialog>
   )
 }
-

@@ -24,6 +24,10 @@ export interface GenerationResult {
   timestamp: number
   status: "success" | "error"
   error?: string
+  isFavorite?: boolean
+  rating?: number
+  tags?: string[]
+  thumbnails?: string[]
 }
 
 async function callFalAPI(provider: ProviderConfig, params: GenerationParams): Promise<string[]> {

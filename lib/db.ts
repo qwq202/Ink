@@ -1,9 +1,9 @@
 import type { GenerationResult } from "./api-client"
 
 const DB_NAME = "ai-image-tool"
-const DB_VERSION = 2
+const DB_VERSION = 3
 const STORE_NAME = "history"
-const MAX_HISTORY_ITEMS = 20
+const MAX_HISTORY_ITEMS = 100
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -31,6 +31,19 @@ function openDB(): Promise<IDBDatabase> {
           }
         }
       }
+
+      if (event.oldVersion < 3) {
+        const store = (event.target as IDBOpenDBRequest).transaction?.objectStore(STORE_NAME)
+        if (store) {
+          // Add new indexes for favorites and rating
+          if (!store.indexNames.contains("isFavorite")) {
+            store.createIndex("isFavorite", "isFavorite", { unique: false })
+          }
+          if (!store.indexNames.contains("rating")) {
+            store.createIndex("rating", "rating", { unique: false })
+          }
+        }
+      }
     }
   })
 }
@@ -46,15 +59,20 @@ export async function saveToHistory(result: GenerationResult): Promise<void> {
     request.onerror = () => reject(request.error)
   })
 
-  // Clean up old entries
+  // Clean up old entries (excluding favorites)
   const allRequest = store.index("timestamp").openCursor(null, "prev")
   let count = 0
 
   allRequest.onsuccess = (event) => {
     const cursor = (event.target as IDBRequest).result
     if (cursor) {
-      count++
-      if (count > MAX_HISTORY_ITEMS) {
+      const value = cursor.value as { isFavorite?: boolean }
+      // Don't count favorites towards the limit
+      if (!value.isFavorite) {
+        count++
+      }
+      // Delete non-favorite items beyond the limit
+      if (count > MAX_HISTORY_ITEMS && !value.isFavorite) {
         cursor.delete()
       }
       cursor.continue()
@@ -115,6 +133,102 @@ export async function clearHistory(): Promise<void> {
     const request = store.clear()
     request.onsuccess = () => resolve()
     request.onerror = () => reject(request.error)
+  })
+
+  db.close()
+}
+
+export async function favoriteHistory(id: string): Promise<void> {
+  const db = await openDB()
+  const transaction = db.transaction([STORE_NAME], "readwrite")
+  const store = transaction.objectStore(STORE_NAME)
+
+  await new Promise<void>((resolve, reject) => {
+    const getRequest = store.get(id)
+    getRequest.onsuccess = () => {
+      const item = getRequest.result
+      if (item) {
+        const updated = { ...item, isFavorite: true }
+        const putRequest = store.put(updated)
+        putRequest.onsuccess = () => resolve()
+        putRequest.onerror = () => reject(putRequest.error)
+      } else {
+        reject(new Error("Item not found"))
+      }
+    }
+    getRequest.onerror = () => reject(getRequest.error)
+  })
+
+  db.close()
+}
+
+export async function unfavoriteHistory(id: string): Promise<void> {
+  const db = await openDB()
+  const transaction = db.transaction([STORE_NAME], "readwrite")
+  const store = transaction.objectStore(STORE_NAME)
+
+  await new Promise<void>((resolve, reject) => {
+    const getRequest = store.get(id)
+    getRequest.onsuccess = () => {
+      const item = getRequest.result
+      if (item) {
+        const updated = { ...item, isFavorite: false }
+        const putRequest = store.put(updated)
+        putRequest.onsuccess = () => resolve()
+        putRequest.onerror = () => reject(putRequest.error)
+      } else {
+        reject(new Error("Item not found"))
+      }
+    }
+    getRequest.onerror = () => reject(getRequest.error)
+  })
+
+  db.close()
+}
+
+export async function updateHistoryRating(id: string, rating: number | null): Promise<void> {
+  const db = await openDB()
+  const transaction = db.transaction([STORE_NAME], "readwrite")
+  const store = transaction.objectStore(STORE_NAME)
+
+  await new Promise<void>((resolve, reject) => {
+    const getRequest = store.get(id)
+    getRequest.onsuccess = () => {
+      const item = getRequest.result
+      if (item) {
+        const updated = { ...item, rating: rating ?? undefined }
+        const putRequest = store.put(updated)
+        putRequest.onsuccess = () => resolve()
+        putRequest.onerror = () => reject(putRequest.error)
+      } else {
+        reject(new Error("Item not found"))
+      }
+    }
+    getRequest.onerror = () => reject(getRequest.error)
+  })
+
+  db.close()
+}
+
+export async function updateHistoryTags(id: string, tags: string[]): Promise<void> {
+  const db = await openDB()
+  const transaction = db.transaction([STORE_NAME], "readwrite")
+  const store = transaction.objectStore(STORE_NAME)
+
+  await new Promise<void>((resolve, reject) => {
+    const getRequest = store.get(id)
+    getRequest.onsuccess = () => {
+      const item = getRequest.result
+      if (item) {
+        const updated = { ...item, tags }
+        const putRequest = store.put(updated)
+        putRequest.onsuccess = () => resolve()
+        putRequest.onerror = () => reject(putRequest.error)
+      } else {
+        reject(new Error("Item not found"))
+      }
+    }
+    getRequest.onerror = () => reject(getRequest.error)
   })
 
   db.close()
