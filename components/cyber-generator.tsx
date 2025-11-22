@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useMemo, useRef, useTransition } from "react"
+import { memo, useState, useCallback, useEffect, useMemo, useRef } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -34,38 +34,363 @@ import {
   Cpu,
   Share2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Star,
+  RotateCcw,
+  Package
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useProviderSettings } from "@/hooks/use-provider-settings"
+import { TaskStatusPanel } from "@/components/task-status-panel"
+import { OnboardingWizard } from "@/components/onboarding-wizard"
+import { useOnboarding } from "@/hooks/use-onboarding"
 import type { GenerationResult } from "@/lib/api-client"
 
 interface CyberGeneratorProps {
   onBack?: () => void
 }
 
+type SelectedImageState = {
+  src: string
+  width: number
+  height: number
+  index: number
+  images: string[]
+}
+
+interface ResultsPanelProps {
+  latestResult?: GenerationResult
+  resultImageSize: { width?: number; height?: number }
+  onClearResults: () => void
+  onDownload: (url: string) => void
+  onOpenImage: (image: SelectedImageState) => void
+}
+
+const ResultsPanel = memo(function ResultsPanel({
+  latestResult,
+  resultImageSize,
+  onClearResults,
+  onDownload,
+  onOpenImage,
+}: ResultsPanelProps) {
+  if (!latestResult || latestResult.images.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center">
+        <div className="w-64 h-64 border border-border flex items-center justify-center relative animate-pulse">
+          <div className="absolute inset-0 border-t border-primary/20"></div>
+          <div className="absolute inset-0 border-b border-primary/20 transform scale-y-50"></div>
+          <Terminal className="h-16 w-16 text-primary/20" />
+        </div>
+        <p className="mt-8 font-mono text-xs tracking-[0.2em] uppercase text-muted-foreground">等待输入指令...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col min-h-0">
+      <div className="flex items-center justify-between mb-4">
+        <div className="font-mono text-xs text-muted-foreground">
+          ID: {latestResult.id.slice(0, 8)} · {latestResult.provider.toUpperCase()}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onClearResults}
+          className="h-7 text-xs border-border rounded-none font-mono hover:bg-destructive/20 hover:text-destructive hover:border-destructive transition-colors"
+        >
+          <Trash2 className="h-3 w-3 mr-2" /> 清空结果
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        {latestResult.images.map((image, idx) => (
+          <div key={idx} className="group relative bg-white border border-border overflow-hidden hover:border-primary transition-colors duration-500">
+            <div className="max-h-[70vh] overflow-auto bg-gradient-to-br from-white via-white to-muted/30">
+              <Image
+                src={image}
+                alt="Generated"
+                width={resultImageSize.width || 1024}
+                height={resultImageSize.height || 1024}
+                className="w-full h-auto block"
+                unoptimized
+              />
+            </div>
+
+            {/* Overlay UI */}
+            <div className="absolute inset-0 bg-gradient-to-t from-white/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6 pointer-events-none">
+              <div className="flex gap-3 translate-y-4 group-hover:translate-y-0 transition-transform duration-300 pointer-events-auto">
+                <Button
+                  size="icon"
+                  className="rounded-none bg-primary text-primary-foreground hover:bg-black hover:text-white"
+                  onClick={() =>
+                    onOpenImage({
+                      src: image,
+                      width: resultImageSize.width || 1024,
+                      height: resultImageSize.height || 1024,
+                      index: idx,
+                      images: latestResult.images,
+                    })
+                  }
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+                <Button size="icon" className="rounded-none border border-black text-black hover:bg-black hover:text-white" onClick={() => onDownload(image)}>
+                  <Download className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Corner Accents */}
+            <div className="absolute top-2 left-2 w-2 h-2 border-t border-l border-black/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="absolute top-2 right-2 w-2 h-2 border-t border-r border-black/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="absolute bottom-2 left-2 w-2 h-2 border-b border-l border-black/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="absolute bottom-2 right-2 w-2 h-2 border-b border-r border-black/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+})
+
+interface HistoryPanelProps {
+  filteredHistory: GenerationResult[]
+  onSelectItem: (item: GenerationResult) => void
+  onDeleteItem: (id: string) => void
+  selectedIds: Set<string>
+  onToggleRow: (id: string, checked: boolean) => void
+  onToggleAll: (checked: boolean) => void
+  onDeleteSelected: () => void
+  onRegenerate?: (item: GenerationResult) => void
+  onToggleFavorite?: (id: string, isFavorite: boolean) => void
+  onBatchDownload?: (ids: string[]) => void
+}
+
+const HistoryPanel = memo(function HistoryPanel({
+  filteredHistory,
+  onSelectItem,
+  onDeleteItem,
+  selectedIds,
+  onToggleRow,
+  onToggleAll,
+  onDeleteSelected,
+  onRegenerate,
+  onToggleFavorite,
+  onBatchDownload,
+}: HistoryPanelProps) {
+  const allIds = filteredHistory.map((item) => item.id)
+  const isAllSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id))
+  const isSomeSelected = selectedIds.size > 0 && !isAllSelected
+
+  return (
+    <div className="border border-border bg-white/40 backdrop-blur-sm">
+      <div className="flex items-center justify-between pr-4 py-3 border-b border-border">
+        <div className="flex items-center gap-3 pl-4">
+          <Checkbox
+            checked={isAllSelected ? true : isSomeSelected ? 'indeterminate' : false}
+            onCheckedChange={(checked) => onToggleAll(Boolean(checked))}
+            className="h-4 w-4"
+            aria-label="全选"
+          />
+          <span className="text-xs font-mono text-muted-foreground">
+            {selectedIds.size}/{filteredHistory.length} 已选
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {onBatchDownload && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={selectedIds.size === 0}
+              className="rounded-none"
+              onClick={() => onBatchDownload(Array.from(selectedIds))}
+            >
+              <Package className="h-4 w-4 mr-2" />
+              批量下载
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={selectedIds.size === 0}
+            className="rounded-none border-destructive text-destructive hover:bg-destructive hover:text-white"
+            onClick={onDeleteSelected}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            批量删除
+          </Button>
+        </div>
+      </div>
+      <Table>
+        <TableHeader className="bg-muted/20">
+          <TableRow className="border-border hover:bg-transparent">
+            <TableHead className="w-[36px] pl-4"></TableHead>
+            <TableHead className="font-mono text-xs text-primary">ID</TableHead>
+            <TableHead className="font-mono text-xs text-primary">预览</TableHead>
+            <TableHead className="font-mono text-xs text-primary">提示词</TableHead>
+            <TableHead className="font-mono text-xs text-primary text-right">操作</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {filteredHistory.map((item) => (
+            <TableRow
+              key={item.id}
+              className="border-border hover:bg-primary/5 group cursor-pointer"
+              onClick={() => onSelectItem(item)}
+            >
+              <TableCell className="w-[36px] pl-4 align-middle" onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                  checked={selectedIds.has(item.id)}
+                  onCheckedChange={(checked) => onToggleRow(item.id, Boolean(checked))}
+                  className="h-4 w-4"
+                  aria-label={`选择 ${item.id}`}
+                />
+              </TableCell>
+              <TableCell
+                className="font-mono text-[10px] text-muted-foreground"
+                onClick={() => onSelectItem(item)}
+              >
+                {item.id.slice(0, 6)}
+              </TableCell>
+              <TableCell>
+                {item.images[0] ? (
+                  <div className="w-12 h-12 relative bg-muted group/image cursor-pointer overflow-hidden">
+                    <Image 
+                      src={item.images[0]} 
+                      alt=""
+                      fill
+                      className="object-cover transition-transform group-hover/image:scale-110"
+                      unoptimized
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onSelectItem(item)
+                      }}
+                    />
+                    {item.images.length > 1 && (
+                      <div className="absolute top-0 right-0 bg-black/60 text-white text-[10px] px-1 font-mono">
+                        +{item.images.length - 1}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-12 h-12 relative bg-muted"></div>
+                )}
+              </TableCell>
+              <TableCell className="max-w-[200px]">
+                <p className="truncate font-mono text-xs text-foreground">{item.params.prompt}</p>
+                <p className="text-[10px] text-muted-foreground uppercase mt-1">
+                  {item.provider} :: {item.params.modelId}
+                </p>
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex items-center justify-end gap-1">
+                  {onToggleFavorite && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onToggleFavorite(item.id, !item.isFavorite)
+                      }}
+                      className={cn(
+                        "h-7 w-7",
+                        item.isFavorite ? "text-yellow-500 hover:text-yellow-600" : "hover:text-yellow-500"
+                      )}
+                    >
+                      <Star className={cn("h-4 w-4", item.isFavorite && "fill-current")} />
+                    </Button>
+                  )}
+                  {onRegenerate && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onRegenerate(item)
+                      }}
+                      className="h-7 w-7 hover:text-primary"
+                      title="用此参数重新生成"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDeleteItem(item.id)
+                    }}
+                    className="h-7 w-7 hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {filteredHistory.length === 0 && (
+        <div className="p-12 text-center font-mono text-xs text-muted-foreground">
+          暂无生成记录
+        </div>
+      )}
+    </div>
+  )
+})
+
 export function CyberGenerator({ onBack }: CyberGeneratorProps) {
   const [mode, setMode] = useState<"img2img" | "txt2img">("txt2img")
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [selectedImage, setSelectedImage] = useState<{ src: string; width: number; height: number; index: number; images: string[] } | null>(null)
+  const [selectedImage, setSelectedImage] = useState<SelectedImageState | null>(null)
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<GenerationResult | null>(null)
   const [formResetSignal, setFormResetSignal] = useState(0)
   const [activeTab, setActiveTab] = useState("generate")
   const [historySearch, setHistorySearch] = useState("")
   const [selectedHistoryIds, setSelectedHistoryIds] = useState<Set<string>>(new Set())
-  const [isModeTransitionPending, startModeTransition] = useTransition()
+  const [initialPrompt, setInitialPrompt] = useState<string | undefined>()
+  const UI_STATE_KEY = "cyber-generator-ui"
   const { toast } = useToast()
+  const { shouldShowOnboarding, completeOnboarding, examplePrompts } = useOnboarding()
+  const { getProvider: getProviderFromSettings } = useProviderSettings()
 
-  const changeMode = useCallback(
-    (nextMode: "img2img" | "txt2img") => {
-      startModeTransition(() => {
-        setMode(nextMode)
-      })
-    },
-    [startModeTransition],
-  )
+  const changeMode = useCallback((nextMode: "img2img" | "txt2img") => {
+    setMode(nextMode)
+  }, [])
 
-  const upload = useImageUpload(4)
+  // Restore UI state
+  useEffect(() => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(UI_STATE_KEY) : null
+      if (!raw) return
+      const parsed = JSON.parse(raw) as Partial<{ mode: "img2img" | "txt2img"; activeTab: string; historySearch: string }>
+      if (parsed.mode === "img2img" || parsed.mode === "txt2img") {
+        setMode(parsed.mode)
+      }
+      if (typeof parsed.activeTab === "string") {
+        setActiveTab(parsed.activeTab)
+      }
+      if (typeof parsed.historySearch === "string") {
+        setHistorySearch(parsed.historySearch)
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  // Persist UI state
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      const payload = { mode, activeTab, historySearch }
+      window.localStorage.setItem(UI_STATE_KEY, JSON.stringify(payload))
+    } catch {
+      // ignore
+    }
+  }, [mode, activeTab, historySearch])
+
+  const upload = useImageUpload(100)
   const addImages = upload.addImages
   const {
     results,
@@ -75,6 +400,10 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
     clearResults,
     clearHistory,
     deleteHistoryItem,
+    cancelGeneration,
+    refreshHistory,
+    toggleFavorite,
+    queueStatus,
   } = useGeneration()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -82,17 +411,7 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
   const [isDragging, setIsDragging] = useState(false)
 
   const latestResult = results[0]
-  
-  // 根据图片数量自适应网格列数
-  const getGridColsClass = useCallback((imageCount: number) => {
-    if (imageCount === 1) return "grid-cols-1"
-    if (imageCount === 2) return "grid-cols-1 md:grid-cols-2"
-    if (imageCount === 3) return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-    if (imageCount === 4) return "grid-cols-1 md:grid-cols-2 lg:grid-cols-2"
-    if (imageCount <= 6) return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-    if (imageCount <= 9) return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3"
-    return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-  }, [])
+  const resultImageSize = useMemo(() => parseImageSize(latestResult?.params.imageSize), [latestResult?.params.imageSize])
   
   const filteredHistory = useMemo(() => {
     const query = historySearch.trim().toLowerCase()
@@ -105,11 +424,142 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
     })
   }, [history, historySearch])
 
-  // Basic history selection logic (simplified for this view)
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) setSelectedHistoryIds(new Set(filteredHistory.map((item) => item.id)))
-    else setSelectedHistoryIds(new Set())
-  }
+  const visibleSelectedIds = useMemo(() => {
+    const valid = new Set(filteredHistory.map((item) => item.id))
+    const next = new Set<string>()
+    selectedHistoryIds.forEach((id) => {
+      if (valid.has(id)) next.add(id)
+    })
+    return next
+  }, [filteredHistory, selectedHistoryIds])
+
+  const handleToggleRow = useCallback((id: string, checked: boolean) => {
+    setSelectedHistoryIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }, [])
+
+  const handleToggleAll = useCallback(
+    (checked: boolean) => {
+      if (checked) {
+        setSelectedHistoryIds(new Set(filteredHistory.map((item) => item.id)))
+      } else {
+        setSelectedHistoryIds(new Set())
+      }
+    },
+    [filteredHistory],
+  )
+
+  const handleDeleteSelected = useCallback(async () => {
+    for (const id of visibleSelectedIds) {
+      await deleteHistoryItem(id)
+    }
+    setSelectedHistoryIds((prev) => {
+      const next = new Set(prev)
+      visibleSelectedIds.forEach((id) => next.delete(id))
+      return next
+    })
+  }, [deleteHistoryItem, visibleSelectedIds])
+
+  const handleRegenerate = useCallback(
+    async (item: GenerationResult) => {
+      const provider = getProviderFromSettings(item.provider.toLowerCase())
+      if (!provider) {
+        toast({
+          title: "供应商不可用",
+          description: `无法找到供应商 ${item.provider}，请检查设置`,
+          variant: "destructive",
+        })
+        return
+      }
+      await generate(provider, item.params)
+      toast({
+        title: "已开始重新生成",
+        description: "使用相同的参数重新生成图片",
+      })
+    },
+    [generate, getProviderFromSettings, toast],
+  )
+
+  const handleToggleFavorite = useCallback(
+    async (id: string, isFavorite: boolean) => {
+      try {
+        await toggleFavorite(id, isFavorite)
+        toast({
+          title: isFavorite ? "已收藏" : "已取消收藏",
+          description: isFavorite ? "此记录已添加到收藏" : "此记录已从收藏中移除",
+        })
+      } catch (error) {
+        toast({
+          title: "操作失败",
+          description: error instanceof Error ? error.message : "无法更新收藏状态",
+          variant: "destructive",
+        })
+      }
+    },
+    [toggleFavorite, toast],
+  )
+
+  const handleBatchDownload = useCallback(
+    async (ids: string[]) => {
+      try {
+        // Dynamic import for JSZip
+        const JSZip = (await import("jszip")).default
+        const zip = new JSZip()
+
+        const selectedItems = history.filter((item) => ids.includes(item.id))
+        let downloadCount = 0
+
+        for (const item of selectedItems) {
+          for (let i = 0; i < item.images.length; i++) {
+            try {
+              const response = await fetch(item.images[i])
+              const blob = await response.blob()
+              const filename = `${item.id}-${i + 1}.png`
+              zip.file(filename, blob)
+              downloadCount++
+            } catch (error) {
+              console.error(`Failed to download image ${i + 1} of ${item.id}:`, error)
+            }
+          }
+        }
+
+        if (downloadCount === 0) {
+          toast({
+            title: "下载失败",
+            description: "没有可下载的图片",
+            variant: "destructive",
+          })
+          return
+        }
+
+        const zipBlob = await zip.generateAsync({ type: "blob" })
+        const url = URL.createObjectURL(zipBlob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `ai-images-${Date.now()}.zip`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+
+        toast({
+          title: "下载成功",
+          description: `已打包下载 ${downloadCount} 张图片`,
+        })
+      } catch (error) {
+        toast({
+          title: "下载失败",
+          description: error instanceof Error ? error.message : "批量下载失败",
+          variant: "destructive",
+        })
+      }
+    },
+    [history, toast],
+  )
 
   const handleReset = () => {
     upload.clearImages()
@@ -132,6 +582,21 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
     } catch (error) {
       console.error("Download failed:", error)
     }
+  }, [])
+  
+  const handleOpenImage = useCallback((next: SelectedImageState) => {
+    setSelectedImage(next)
+  }, [])
+
+  // keep grid columns logic close by to avoid re-allocation each render
+  const getGridColsClass = useCallback((imageCount: number) => {
+    if (imageCount === 1) return "grid-cols-1"
+    if (imageCount === 2) return "grid-cols-1 sm:grid-cols-2"
+    if (imageCount === 3) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+    if (imageCount === 4) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2"
+    if (imageCount <= 6) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+    if (imageCount <= 9) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+    return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
   }, [])
 
   return (
@@ -189,52 +654,55 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
                 </button>
             </div>
 
-            {/* Image Upload Area (Conditional) */}
-            {mode === "img2img" && (
-                <div className="border border-dashed border-primary/50 bg-primary/5 p-6 relative group transition-all hover:bg-primary/10">
-                    <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-primary"></div>
-                    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-primary"></div>
-                    <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-primary"></div>
-                    <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-primary"></div>
-                    
-                    <div 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex flex-col items-center justify-center cursor-pointer gap-3"
-                    >
-                        <Upload className="h-8 w-8 text-primary animate-pulse" />
-                        <div className="text-center">
-                            <p className="text-xs font-mono text-primary font-bold">上传源图</p>
-                            <p className="text-[10px] text-muted-foreground mt-1">最多上传 4 张</p>
-                        </div>
-                    </div>
-                     <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={(e) => {
-                          if(e.target.files) addImages(Array.from(e.target.files))
-                      }}
-                    />
-                    {/* Preview Thumbnails */}
-                    {upload.images.length > 0 && (
-                        <div className="grid grid-cols-4 gap-2 mt-4">
-                            {upload.images.map((img, i) => (
-                                <div key={img.id} className="relative aspect-square border border-border bg-white">
-                                    <Image src={img.preview} alt="" fill className="object-cover opacity-70 hover:opacity-100 transition-opacity" />
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); upload.removeImage(img.id) }}
-                                        className="absolute top-0 right-0 bg-destructive text-white p-0.5"
-                                    >
-                                        <X className="h-3 w-3" />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
+            {/* Image Upload Area (kept mounted to avoid costly remounts when toggling modes) */}
+            <div
+              className={cn(
+                "border border-dashed border-primary/50 bg-primary/5 p-6 relative group transition-all hover:bg-primary/10",
+                mode === "img2img" ? "block" : "hidden"
+              )}
+            >
+              <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-primary"></div>
+              <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-primary"></div>
+              <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-primary"></div>
+              <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-primary"></div>
+              
+              <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center cursor-pointer gap-3"
+              >
+                  <Upload className="h-8 w-8 text-primary animate-pulse" />
+                  <div className="text-center">
+                      <p className="text-xs font-mono text-primary font-bold">上传源图</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">已上传 {upload.images.length} 张</p>
+                  </div>
+              </div>
+               <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                    if(e.target.files) addImages(Array.from(e.target.files))
+                }}
+              />
+              {/* Preview Thumbnails */}
+              {upload.images.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2 mt-4">
+                      {upload.images.map((img) => (
+                          <div key={img.id} className="relative aspect-square border border-border bg-white">
+                              <Image src={img.preview} alt="" fill className="object-cover opacity-70 hover:opacity-100 transition-opacity" />
+                              <button 
+                                  onClick={(e) => { e.stopPropagation(); upload.removeImage(img.id) }}
+                                  className="absolute top-0 right-0 bg-destructive text-white p-0.5"
+                              >
+                                  <X className="h-3 w-3" />
+                              </button>
+                          </div>
+                      ))}
+                  </div>
+              )}
+            </div>
 
             <GenerationForm
                 mode={mode}
@@ -243,6 +711,8 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
                 onGenerate={generate}
                 onReset={handleReset}
                 resetSignal={formResetSignal}
+                initialPrompt={initialPrompt}
+                onPromptSet={() => setInitialPrompt(undefined)}
             />
         </div>
       </aside>
@@ -276,152 +746,55 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto p-8 z-10 relative">
-                <TabsContent value="generate" className="m-0">
-                {latestResult && latestResult.images.length > 0 ? (
-                     <div className="flex flex-col min-h-0">
-                         <div className="flex items-center justify-between mb-4">
-                             <div className="font-mono text-xs text-muted-foreground">
-                                 ID: {latestResult.id.slice(0,8)} // {latestResult.provider.toUpperCase()}
-                             </div>
-                             <Button variant="outline" size="sm" onClick={clearResults} className="h-7 text-xs border-border rounded-none font-mono hover:bg-destructive/20 hover:text-destructive hover:border-destructive transition-colors">
-                                <Trash2 className="h-3 w-3 mr-2" /> 清空结果
-                             </Button>
-                         </div>
-                         
-                         <div className={cn("grid gap-6", getGridColsClass(latestResult.images.length))}>
-                             {latestResult.images.map((image, idx) => (
-                                 <div key={idx} className="group relative aspect-square bg-white border border-border overflow-hidden hover:border-primary transition-colors duration-500">
-                                     <Image 
-                                        src={image} 
-                                        alt="Generated" 
-                                        fill 
-                                        className="object-cover transition-transform duration-700 group-hover:scale-110 group-hover:saturate-150"
-                                        unoptimized
-                                    />
-                                     
-                                     {/* Overlay UI */}
-                                     <div className="absolute inset-0 bg-gradient-to-t from-white/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
-                                        <div className="flex gap-3 translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                                            <Button size="icon" className="rounded-none bg-primary text-primary-foreground hover:bg-black hover:text-white"
-                                                onClick={() => {
-                                                    const { width, height } = parseImageSize(latestResult.params.imageSize)
-                                                    setSelectedImage({ 
-                                                        src: image, 
-                                                        width, 
-                                                        height,
-                                                        index: idx,
-                                                        images: latestResult.images
-                                                    })
-                                                }}
-                                            >
-                                                <Maximize2 className="h-4 w-4" />
-                                            </Button>
-                                            <Button size="icon" className="rounded-none border border-black text-black hover:bg-black hover:text-white"
-                                                onClick={() => handleDownload(image)}
-                                            >
-                                                <Download className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                     </div>
-                                     
-                                     {/* Corner Accents */}
-                                     <div className="absolute top-2 left-2 w-2 h-2 border-t border-l border-black/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                     <div className="absolute top-2 right-2 w-2 h-2 border-t border-r border-black/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                     <div className="absolute bottom-2 left-2 w-2 h-2 border-b border-l border-black/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                     <div className="absolute bottom-2 right-2 w-2 h-2 border-b border-r border-black/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                 </div>
-                             ))}
-                         </div>
-                     </div>
-                ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
-                        <div className="w-64 h-64 border border-border flex items-center justify-center relative animate-pulse">
-                            <div className="absolute inset-0 border-t border-primary/20"></div>
-                            <div className="absolute inset-0 border-b border-primary/20 transform scale-y-50"></div>
-                            <Terminal className="h-16 w-16 text-primary/20" />
-                        </div>
-                        <p className="mt-8 font-mono text-xs tracking-[0.2em] uppercase">等待输入指令...</p>
-                    </div>
-                )}
-            </TabsContent>
-
-            <TabsContent value="history" className="h-full m-0">
-                {/* Cyber Table for History */}
-                <div className="border border-border bg-white/40 backdrop-blur-sm">
-                    <Table>
-                        <TableHeader className="bg-muted/20">
-                            <TableRow className="border-border hover:bg-transparent">
-                                <TableHead className="font-mono text-xs text-primary">ID</TableHead>
-                                <TableHead className="font-mono text-xs text-primary">预览</TableHead>
-                                <TableHead className="font-mono text-xs text-primary">提示词</TableHead>
-                                <TableHead className="font-mono text-xs text-primary text-right">操作</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredHistory.map((item) => (
-                                <TableRow 
-                                    key={item.id} 
-                                    className="border-border hover:bg-primary/5 group cursor-pointer"
-                                    onClick={() => setSelectedHistoryItem(item)}
-                                >
-                                    <TableCell className="font-mono text-[10px] text-muted-foreground">{item.id.slice(0,6)}</TableCell>
-                                    <TableCell>
-                                        {item.images[0] ? (
-                                            <div className="w-12 h-12 relative bg-muted group/image cursor-pointer overflow-hidden">
-                                                <Image 
-                                                    src={item.images[0]} 
-                                                    alt="" 
-                                                    fill 
-                                                    className="object-cover transition-transform group-hover/image:scale-110" 
-                                                    unoptimized 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        setSelectedHistoryItem(item)
-                                                    }}
-                                                />
-                                                {item.images.length > 1 && (
-                                                    <div className="absolute top-0 right-0 bg-black/60 text-white text-[10px] px-1 font-mono">
-                                                        +{item.images.length - 1}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <div className="w-12 h-12 relative bg-muted"></div>
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="max-w-[200px]">
-                                        <p className="truncate font-mono text-xs text-foreground">{item.params.prompt}</p>
-                                        <p className="text-[10px] text-muted-foreground uppercase mt-1">{item.provider} :: {item.params.modelId}</p>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <Button 
-                                            variant="ghost" 
-                                            size="icon" 
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                deleteHistoryItem(item.id)
-                                            }} 
-                                            className="hover:text-destructive"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                    {filteredHistory.length === 0 && (
-                        <div className="p-12 text-center font-mono text-xs text-muted-foreground">
-                            暂无生成记录
-                        </div>
-                    )}
+              {queueStatus.tasks.length > 0 && (
+                <div className="mb-6">
+                  <TaskStatusPanel
+                    tasks={queueStatus.tasks}
+                    onCancel={cancelGeneration}
+                  />
                 </div>
-            </TabsContent>
-        </div>
+              )}
+              <TabsContent value="generate" className="m-0">
+                <ResultsPanel
+                  latestResult={latestResult}
+                  resultImageSize={resultImageSize}
+                  onClearResults={clearResults}
+                  onDownload={handleDownload}
+                  onOpenImage={handleOpenImage}
+                />
+              </TabsContent>
+
+              <TabsContent value="history" className="h-full m-0">
+                <HistoryPanel
+                  filteredHistory={filteredHistory}
+                  onSelectItem={setSelectedHistoryItem}
+                  onDeleteItem={deleteHistoryItem}
+                  selectedIds={visibleSelectedIds}
+                  onToggleRow={handleToggleRow}
+                  onToggleAll={handleToggleAll}
+                  onDeleteSelected={handleDeleteSelected}
+                  onRegenerate={handleRegenerate}
+                  onToggleFavorite={handleToggleFavorite}
+                  onBatchDownload={handleBatchDownload}
+                />
+              </TabsContent>
+            </div>
         </Tabs>
       </main>
 
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+
+      {shouldShowOnboarding && (
+        <OnboardingWizard
+          onComplete={completeOnboarding}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onSelectExample={(example) => {
+            setInitialPrompt(example.prompt)
+            changeMode(example.mode)
+            completeOnboarding()
+          }}
+        />
+      )}
       
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
         <DialogContent className="max-w-screen-xl border-primary/50 bg-black/90 p-0 backdrop-blur-xl overflow-hidden outline-none" onKeyDown={(e) => {

@@ -17,7 +17,7 @@ interface ImageUploadSectionProps {
   maxImages?: number
 }
 
-export function ImageUploadSection({ upload, maxImages = 4 }: ImageUploadSectionProps = {}) {
+export function ImageUploadSection({ upload, maxImages = 100 }: ImageUploadSectionProps = {}) {
   const internalUpload = useImageUpload(maxImages)
   const { images, isUploading, addImages, removeImage, clearImages } = upload ?? internalUpload
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -85,7 +85,7 @@ export function ImageUploadSection({ upload, maxImages = 4 }: ImageUploadSection
         <div className="flex items-center justify-between">
           <div>
             <CardTitle>上传图片</CardTitle>
-            <CardDescription>最多上传 {maxImages} 张图片进行编辑 ({images.length}/{maxImages})</CardDescription>
+            <CardDescription>已上传 {images.length} 张图片</CardDescription>
           </div>
           {images.length > 0 && (
             <Button variant="ghost" size="sm" onClick={clearImages}>

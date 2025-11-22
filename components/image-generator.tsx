@@ -18,7 +18,7 @@ export function ImageGenerator() {
   const [mode, setMode] = useState<"img2img" | "txt2img">("img2img")
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [historyKey, setHistoryKey] = useState(0)
-  const upload = useImageUpload(4)
+  const upload = useImageUpload(100)
   const {
     results,
     history,

@@ -18,8 +18,13 @@ import {
 } from "@/components/ui/table"
 import { GenerationForm } from "@/components/generation-form"
 import { SettingsDialog } from "@/components/settings-dialog"
+import { TaskStatusPanel } from "@/components/task-status-panel"
+import { OnboardingWizard } from "@/components/onboarding-wizard"
+import { EmptyState } from "@/components/empty-state"
+import { useOnboarding } from "@/hooks/use-onboarding"
 import { useImageUpload } from "@/hooks/use-image-upload"
 import { useGeneration } from "@/hooks/use-generation"
+import { useProviderSettings } from "@/hooks/use-provider-settings"
 import { cn } from "@/lib/utils"
 import { parseImageSize } from "@/lib/image-utils"
 import {
@@ -40,6 +45,9 @@ import {
   Copy,
   ChevronLeft,
   ChevronRight,
+  Star,
+  RotateCcw,
+  Package,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import type { GenerationResult } from "@/lib/api-client"
@@ -57,8 +65,12 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
   const [activeTab, setActiveTab] = useState("generate")
   const [historySearch, setHistorySearch] = useState("")
   const [selectedHistoryIds, setSelectedHistoryIds] = useState<Set<string>>(new Set())
+  const [initialPrompt, setInitialPrompt] = useState<string | undefined>()
+  const UI_STATE_KEY = "new-image-generator-ui"
   const [isModeTransitionPending, startModeTransition] = useTransition()
   const { toast } = useToast()
+  const { shouldShowOnboarding, completeOnboarding } = useOnboarding()
+  const { getProvider } = useProviderSettings()
   const changeMode = useCallback(
     (nextMode: "img2img" | "txt2img") => {
       startModeTransition(() => {
@@ -68,7 +80,38 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
     [startModeTransition],
   )
 
-  const upload = useImageUpload(4)
+  // Restore UI state
+  useEffect(() => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(UI_STATE_KEY) : null
+      if (!raw) return
+      const parsed = JSON.parse(raw) as Partial<{ mode: "img2img" | "txt2img"; activeTab: string; historySearch: string }>
+      if (parsed.mode === "img2img" || parsed.mode === "txt2img") {
+        setMode(parsed.mode)
+      }
+      if (typeof parsed.activeTab === "string") {
+        setActiveTab(parsed.activeTab)
+      }
+      if (typeof parsed.historySearch === "string") {
+        setHistorySearch(parsed.historySearch)
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  // Persist UI state
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      const payload = { mode, activeTab, historySearch }
+      window.localStorage.setItem(UI_STATE_KEY, JSON.stringify(payload))
+    } catch {
+      // ignore
+    }
+  }, [mode, activeTab, historySearch])
+
+  const upload = useImageUpload(100)
   const addImages = upload.addImages
   const {
     results,
@@ -78,6 +121,10 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
     clearResults,
     clearHistory,
     deleteHistoryItem,
+    cancelGeneration,
+    refreshHistory,
+    toggleFavorite,
+    queueStatus,
   } = useGeneration()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -185,6 +232,103 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
     }
     setSelectedHistoryIds(new Set())
   }, [selectedHistoryIds, deleteHistoryItem])
+
+  const handleRegenerate = useCallback(
+    async (item: GenerationResult) => {
+      const provider = getProvider(item.provider.toLowerCase())
+      if (!provider) {
+        toast({
+          title: "供应商不可用",
+          description: `无法找到供应商 ${item.provider}，请检查设置`,
+          variant: "destructive",
+        })
+        return
+      }
+      await generate(provider, item.params)
+      toast({
+        title: "已开始重新生成",
+        description: "使用相同的参数重新生成图片",
+      })
+    },
+    [generate, getProvider, toast],
+  )
+
+  const handleToggleFavorite = useCallback(
+    async (id: string, isFavorite: boolean) => {
+      try {
+        await toggleFavorite(id, isFavorite)
+        toast({
+          title: isFavorite ? "已收藏" : "已取消收藏",
+          description: isFavorite ? "此记录已添加到收藏" : "此记录已从收藏中移除",
+        })
+      } catch (error) {
+        toast({
+          title: "操作失败",
+          description: error instanceof Error ? error.message : "无法更新收藏状态",
+          variant: "destructive",
+        })
+      }
+    },
+    [toggleFavorite, toast],
+  )
+
+  const handleBatchDownload = useCallback(
+    async (ids: string[]) => {
+      try {
+        // Dynamic import for JSZip
+        const JSZip = (await import("jszip")).default
+        const zip = new JSZip()
+
+        const selectedItems = history.filter((item) => ids.includes(item.id))
+        let downloadCount = 0
+
+        for (const item of selectedItems) {
+          for (let i = 0; i < item.images.length; i++) {
+            try {
+              const response = await fetch(item.images[i])
+              const blob = await response.blob()
+              const filename = `${item.id}-${i + 1}.png`
+              zip.file(filename, blob)
+              downloadCount++
+            } catch (error) {
+              console.error(`Failed to download image ${i + 1} of ${item.id}:`, error)
+            }
+          }
+        }
+
+        if (downloadCount === 0) {
+          toast({
+            title: "下载失败",
+            description: "没有可下载的图片",
+            variant: "destructive",
+          })
+          return
+        }
+
+        const zipBlob = await zip.generateAsync({ type: "blob" })
+        const url = URL.createObjectURL(zipBlob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `ai-images-${Date.now()}.zip`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+
+        toast({
+          title: "下载成功",
+          description: `已打包下载 ${downloadCount} 张图片`,
+        })
+      } catch (error) {
+        toast({
+          title: "下载失败",
+          description: error instanceof Error ? error.message : "批量下载失败",
+          variant: "destructive",
+        })
+      }
+    },
+    [history, toast],
+  )
 
   const handleCopyPrompt = useCallback(
     async (prompt: string) => {
@@ -457,6 +601,16 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
             )}
           </div>
 
+          {/* 任务状态面板 */}
+          {queueStatus.tasks.length > 0 && (
+            <div className="mb-6">
+              <TaskStatusPanel
+                tasks={queueStatus.tasks}
+                onCancel={cancelGeneration}
+              />
+            </div>
+          )}
+
           {/* 创作Tab */}
           <TabsContent value="generate" className="m-0 space-y-6">
             <div className="space-y-6">
@@ -468,7 +622,7 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
                       <div>
                         <h3 className="text-xl font-bold text-gray-900">上传图片</h3>
                         <p className="text-sm text-gray-600">
-                          最多 4 张 ({upload.images.length}/4)
+                          已上传 {upload.images.length} 张
                         </p>
                       </div>
                       {upload.images.length > 0 && (
@@ -573,6 +727,8 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
                 onGenerate={generate}
                 onReset={handleReset}
                 resetSignal={formResetSignal}
+                initialPrompt={initialPrompt}
+                onPromptSet={() => setInitialPrompt(undefined)}
               />
             </div>
           </TabsContent>
@@ -582,25 +738,16 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
             <div>
               {!latestResult || latestResult.images.length === 0 ? (
                 <Card className="border-2 border-dashed border-gray-200">
-                  <CardContent className="flex min-h-[400px] items-center justify-center">
-                    <div className="flex flex-col items-center gap-4 text-center">
-                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
-                        <ImageIcon className="h-10 w-10 text-gray-400" />
-                      </div>
-                      <div>
-                        <h3 className="mb-2 text-xl font-semibold text-gray-900">暂无生成结果</h3>
-                        <p className="text-gray-600">
-                          前往创作页面开始生成图片
-                        </p>
-                      </div>
-                      <Button
-                        onClick={() => setActiveTab("generate")}
-                        className="mt-4 gap-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800"
-                      >
-                        <Sparkles className="h-4 w-4" />
-                        开始创作
-                      </Button>
-                    </div>
+                  <CardContent className="p-8">
+                    <EmptyState
+                      type="results"
+                      onAction={() => setActiveTab("generate")}
+                      onSelectExample={(example) => {
+                        setInitialPrompt(example.prompt)
+                        changeMode(example.mode)
+                        setActiveTab("generate")
+                      }}
+                    />
                   </CardContent>
                 </Card>
               ) : (
@@ -685,18 +832,11 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
             <div>
               {history.length === 0 ? (
                 <Card className="border-2 border-dashed border-gray-200">
-                  <CardContent className="flex min-h-[400px] items-center justify-center">
-                    <div className="flex flex-col items-center gap-4 text-center">
-                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
-                        <Clock className="h-10 w-10 text-gray-400" />
-                      </div>
-                      <div>
-                        <h3 className="mb-2 text-xl font-semibold text-gray-900">暂无历史记录</h3>
-                        <p className="text-gray-600">
-                          你的生成历史将会保存在这里
-                        </p>
-                      </div>
-                    </div>
+                  <CardContent className="p-8">
+                    <EmptyState
+                      type="history"
+                      onAction={() => setActiveTab("generate")}
+                    />
                   </CardContent>
                 </Card>
               ) : (
@@ -740,15 +880,26 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
                         )}
                       </div>
                       {selectedHistoryIds.size > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleDeleteSelected}
-                          className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          删除选中
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleBatchDownload(Array.from(selectedHistoryIds))}
+                            className="gap-1.5"
+                          >
+                            <Package className="h-4 w-4" />
+                            批量下载
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDeleteSelected}
+                            className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            删除选中
+                          </Button>
+                        </>
                       )}
                       <Button
                         variant="ghost"
@@ -779,15 +930,14 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
                         <Table>
                           <TableHeader>
                             <TableRow className="bg-gray-50">
-                              <TableHead className="w-[48px]">
-                                <Checkbox
-                                  checked={isAllSelected}
-                                  onCheckedChange={handleSelectAll}
-                                  aria-label="全选"
-                                  className={cn(
-                                    isSomeSelected && !isAllSelected && "border-gray-900 bg-gray-400"
-                                  )}
-                                />
+                              <TableHead className="w-[48px] p-0">
+                                <div className="flex h-full w-full items-center justify-center">
+                                  <Checkbox
+                                    checked={isAllSelected ? true : isSomeSelected ? 'indeterminate' : false}
+                                    onCheckedChange={handleSelectAll}
+                                    aria-label="全选"
+                                  />
+                                </div>
                               </TableHead>
                               <TableHead className="w-[72px]">预览</TableHead>
                               <TableHead>供应商</TableHead>
@@ -808,17 +958,19 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
                                     className={cn(isSelected && "bg-blue-50/50", "cursor-pointer")}
                                     onClick={() => setSelectedHistoryItem(item)}
                                 >
-                                  <TableCell>
-                                    <Checkbox
-                                      checked={isSelected}
-                                      onCheckedChange={(checked) => {
-                                        handleSelectItem(item.id, checked as boolean)
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      aria-label={`选择 ${item.provider}`}
-                                    />
+                                  <TableCell className="p-0">
+                                    <div className="flex h-full w-full items-center justify-center">
+                                      <Checkbox
+                                        checked={isSelected}
+                                        onCheckedChange={(checked) => {
+                                          handleSelectItem(item.id, checked as boolean)
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        aria-label={`选择 ${item.provider}`}
+                                      />
+                                    </div>
                                   </TableCell>
-                                  <TableCell>
+                                  <TableCell className="align-middle">
                                     {primaryImage ? (
                                       <div className="relative h-12 w-12 overflow-hidden rounded-md border border-gray-200 group/image cursor-pointer">
                                         <Image
@@ -843,16 +995,16 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
                                       <span className="text-xs text-gray-400">无</span>
                                     )}
                                   </TableCell>
-                                  <TableCell>
+                                  <TableCell className="align-middle">
                                     <div className="flex flex-col">
                                       <span className="font-medium text-gray-900">{item.provider}</span>
                                       <span className="text-xs text-gray-500">共 {item.images.length} 张</span>
                                     </div>
                                   </TableCell>
-                                  <TableCell className="max-w-[160px] truncate text-gray-600">
+                                  <TableCell className="max-w-[160px] truncate text-gray-600 align-middle">
                                     {item.params.modelId ? item.params.modelId : "—"}
                                   </TableCell>
-                                  <TableCell className="max-w-[260px] text-gray-700">
+                                  <TableCell className="max-w-[260px] text-gray-700 align-middle">
                                     {item.params.prompt ? (
                                       <div className="flex items-center gap-2">
                                         <span className="flex-1 truncate" title={item.params.prompt}>
@@ -872,14 +1024,41 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
                                       "—"
                                     )}
                                   </TableCell>
-                                  <TableCell className="text-gray-600">
+                                  <TableCell className="text-gray-600 align-middle">
                                     {formatHistoryTimestamp(item.timestamp)}
                                   </TableCell>
-                                  <TableCell className="text-center text-gray-700">
+                                  <TableCell className="text-center text-gray-700 align-middle">
                                     {item.images.length}
                                   </TableCell>
-                                  <TableCell>
-                                    <div className="flex items-center justify-end gap-2">
+                                  <TableCell className="align-middle">
+                                    <div className="flex items-center justify-end gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleToggleFavorite(item.id, !item.isFavorite)
+                                        }}
+                                        className={cn(
+                                          "h-8 w-8",
+                                          item.isFavorite ? "text-yellow-500 hover:text-yellow-600" : "hover:text-yellow-500"
+                                        )}
+                                        title={item.isFavorite ? "取消收藏" : "收藏"}
+                                      >
+                                        <Star className={cn("h-4 w-4", item.isFavorite && "fill-current")} />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleRegenerate(item)
+                                        }}
+                                        className="h-8 w-8 text-gray-500 hover:text-primary"
+                                        title="用此参数重新生成"
+                                      >
+                                        <RotateCcw className="h-4 w-4" />
+                                      </Button>
                                       <Button
                                         variant="ghost"
                                         size="icon"
@@ -897,6 +1076,7 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
                                               images: item.images
                                           })
                                         }}
+                                        title="查看大图"
                                       >
                                         <Maximize2 className="h-4 w-4" />
                                       </Button>
@@ -908,6 +1088,7 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
                                           deleteHistoryItem(item.id)
                                         }}
                                         className="h-8 w-8 text-gray-400 hover:text-gray-900"
+                                        title="删除"
                                       >
                                         <Trash2 className="h-4 w-4" />
                                       </Button>
@@ -1018,6 +1199,18 @@ export function NewImageGenerator({ onBack }: NewImageGeneratorProps) {
       </Dialog>
 
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+
+      {shouldShowOnboarding && (
+        <OnboardingWizard
+          onComplete={completeOnboarding}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onSelectExample={(example) => {
+            setInitialPrompt(example.prompt)
+            changeMode(example.mode)
+            completeOnboarding()
+          }}
+        />
+      )}
 
       {/* 日志详情对话框 */}
       <Dialog open={!!selectedHistoryItem} onOpenChange={() => setSelectedHistoryItem(null)}>
