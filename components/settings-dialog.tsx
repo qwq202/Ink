@@ -61,34 +61,62 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
 
 
   useEffect(() => {
-    setMounted(true)
+    // Mount check for client-side only rendering
+    const timer = setTimeout(() => {
+      if (typeof window !== "undefined") {
+        setMounted(true)
+      }
+    }, 0)
+    return () => clearTimeout(timer)
   }, [])
 
   useEffect(() => {
-    if (settings) {
+    if (!settings || !mounted) return
+
+    let cancelled = false
+    const applyConfigs = () => {
+      if (cancelled) return
+
       setFalConfig({
         apiKey: settings.fal.apiKey,
         openaiApiKey: settings.fal.openaiApiKey ?? "",
         enabled: settings.fal.enabled,
         requestOrigin: settings.fal.requestOrigin ?? "client",
       })
+
       setOpenaiConfig({
         apiKey: settings.openai.apiKey,
         endpoint: settings.openai.endpoint,
         enabled: settings.openai.enabled,
       })
+
       setNewapiConfig({
         apiKey: settings.newapi.apiKey,
         endpoint: settings.newapi.endpoint,
         enabled: settings.newapi.enabled,
       })
+
       setOpenrouterConfig({
         apiKey: settings.openrouter.apiKey,
         endpoint: settings.openrouter.endpoint || "https://openrouter.ai/api/v1",
         enabled: settings.openrouter.enabled,
       })
     }
-  }, [settings])
+
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      const frame = window.requestAnimationFrame(applyConfigs)
+      return () => {
+        cancelled = true
+        window.cancelAnimationFrame(frame)
+      }
+    }
+
+    const timeout = setTimeout(applyConfigs, 0)
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+    }
+  }, [settings, mounted])
 
   const handleSaveFal = async () => {
     await updateProvider("fal", falConfig)

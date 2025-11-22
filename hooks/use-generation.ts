@@ -10,6 +10,10 @@ import {
   loadHistory,
   clearHistory as clearHistoryStore,
   deleteFromHistory as deleteFromHistoryStore,
+  favoriteHistory,
+  unfavoriteHistory,
+  updateHistoryRating,
+  updateHistoryTags,
 } from "@/lib/db"
 import { useTaskQueue } from "@/hooks/use-task-queue"
 
@@ -17,7 +21,7 @@ export function useGeneration() {
   const [results, setResults] = useState<GenerationResult[]>([])
   const [history, setHistory] = useState<GenerationResult[]>([])
   const { toast } = useToast()
-  const { addTask, pending, running } = useTaskQueue(2)
+  const { addTask, cancelTask, getTask, tasks, pending, running } = useTaskQueue(2)
 
   // 让生成状态与任务队列保持一致，避免并发任务时状态提前归零
   const isGenerating = useMemo(() => pending > 0 || running > 0, [pending, running])
@@ -41,10 +45,16 @@ export function useGeneration() {
       const maxAttempts = 3
       const baseDelay = 800
 
-      const runWithRetry = async () => {
+      const runWithRetry = async (taskId: string) => {
         let attempt = 0
         while (true) {
           try {
+            // Check if task was cancelled
+            const currentTask = getTask(taskId)
+            if (currentTask?.status === "cancelled") {
+              throw new Error("Task cancelled")
+            }
+
             const latestSettings = await loadProviderSettings()
             const latestProvider = latestSettings[providerId as keyof typeof latestSettings] ?? provider
             result.provider = latestProvider.name
@@ -55,11 +65,23 @@ export function useGeneration() {
 
             return result
           } catch (error) {
+            // Check if task was cancelled
+            const currentTask = getTask(taskId)
+            if (currentTask?.status === "cancelled") {
+              throw error
+            }
+
             attempt += 1
             const message = error instanceof Error ? error.message.toLowerCase() : ""
             const isTransient = /429|rate limit|timeout|timed out|network|fetch failed|503|524/.test(message)
             if (!isTransient || attempt >= maxAttempts) {
               throw error
+            }
+
+            // Update retry count in task
+            const retryTask = getTask(taskId)
+            if (retryTask) {
+              retryTask.retryCount = attempt
             }
 
             const delay = baseDelay * Math.pow(2, attempt - 1)
@@ -68,11 +90,11 @@ export function useGeneration() {
         }
       }
 
-      addTask(
+      const task = addTask(
         `生成图片: ${params.prompt.substring(0, 30)}...`,
         async () => {
           try {
-            const finalResult = await runWithRetry()
+            const finalResult = await runWithRetry(task.id)
 
             // 仅保留最近 20 条结果，避免内存占用过大
             setResults((prev) => [finalResult, ...prev].slice(0, 20))
@@ -87,6 +109,11 @@ export function useGeneration() {
 
             return finalResult
           } catch (error) {
+            // Don't show error toast if task was cancelled
+            if (error instanceof Error && error.message === "Task cancelled") {
+              throw error
+            }
+
             result.status = "error"
             result.error = error instanceof Error ? error.message : "Unknown error"
 
@@ -123,14 +150,72 @@ export function useGeneration() {
     await deleteFromHistoryStore(id)
   }, [])
 
+  const cancelGeneration = useCallback((taskId: string) => {
+    return cancelTask(taskId)
+  }, [cancelTask])
+
+  const refreshHistory = useCallback(async () => {
+    const loaded = await loadHistory()
+    setHistory(loaded)
+  }, [])
+
+  const toggleFavorite = useCallback(
+    async (id: string, isFavorite: boolean) => {
+      try {
+        if (isFavorite) {
+          await favoriteHistory(id)
+        } else {
+          await unfavoriteHistory(id)
+        }
+        await refreshHistory()
+      } catch (error) {
+        console.error("Failed to toggle favorite:", error)
+        throw error
+      }
+    },
+    [refreshHistory],
+  )
+
+  const updateRating = useCallback(
+    async (id: string, rating: number | null) => {
+      try {
+        await updateHistoryRating(id, rating)
+        await refreshHistory()
+      } catch (error) {
+        console.error("Failed to update rating:", error)
+        throw error
+      }
+    },
+    [refreshHistory],
+  )
+
+  const updateTags = useCallback(
+    async (id: string, tags: string[]) => {
+      try {
+        await updateHistoryTags(id, tags)
+        await refreshHistory()
+      } catch (error) {
+        console.error("Failed to update tags:", error)
+        throw error
+      }
+    },
+    [refreshHistory],
+  )
+
   return {
     isGenerating,
     results,
     history,
+    setHistory,
     generate,
     clearResults,
     clearHistory,
     deleteHistoryItem,
-    queueStatus: { pending, running },
+    cancelGeneration,
+    refreshHistory,
+    toggleFavorite,
+    updateRating,
+    updateTags,
+    queueStatus: { pending, running, tasks },
   }
 }
