@@ -113,25 +113,24 @@ export function GenerationForm({
 
 
 
+  // 只保存用户主动应用的自定义尺寸，不包括预设尺寸
   const customAppliedValue = useMemo(() => {
-    if (imageSizeSelection && /^\d+\s*x\s*\d+$/i.test(imageSizeSelection)) {
-      return imageSizeSelection.replace(/\s+/g, "").toLowerCase()
-    }
     if (customSizeApplied) {
       return customSizeApplied.replace(/\s+/g, "").toLowerCase()
     }
     return null
-  }, [customSizeApplied, imageSizeSelection])
+  }, [customSizeApplied])
 
+  // 判断是否应该显示自定义尺寸输入框
   const isCustomSelection = useMemo(() => {
-    // 只有选择 "custom" 或者选择值是用户应用的自定义尺寸时，才显示自定义输入框
+    // 1. 用户明确选择了"自定义尺寸"选项
     if (imageSizeSelection === "custom") return true
     
-    // 如果当前选择值等于用户应用的自定义尺寸，也显示输入框
-    if (customAppliedValue && imageSizeSelection === customAppliedValue) return true
+    // 2. 用户应用了自定义尺寸后，继续保持显示（方便修改）
+    if (customSizeApplied && imageSizeSelection === customSizeApplied) return true
     
     return false
-  }, [imageSizeSelection, customAppliedValue])
+  }, [imageSizeSelection, customSizeApplied])
 
   // OpenRouter states
   const [selectedOpenRouterModel, setSelectedOpenRouterModel] = useState<string>("google/gemini-2.5-flash-image")
@@ -286,13 +285,7 @@ export function GenerationForm({
   }, [customHeight, customWidth, toast])
 
   useEffect(() => {
-    console.log("[GenerationForm] 🔵 LOAD PREFERENCES EFFECT START", {
-      window: typeof window !== "undefined",
-      isRestoring: isRestoringRef.current,
-    })
-    
     if (typeof window === "undefined") {
-      console.log("[GenerationForm] ⚪ Server-side, skipping")
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setHasLoadedPreferences(true)
       isRestoringRef.current = false
@@ -304,43 +297,34 @@ export function GenerationForm({
 
     try {
       const raw = window.localStorage.getItem(PREFERENCES_STORAGE_KEY)
-      console.log("[GenerationForm] 📖 Reading from localStorage:", raw ? "found" : "not found", raw)
       if (raw) {
         parsed = JSON.parse(raw) as Partial<GenerationPreferences>
-        console.log("[GenerationForm] ✅ Parsed preferences:", parsed)
       }
     } catch (error) {
-      console.warn("[GenerationForm] ❌ Failed to parse stored preferences", error)
+      console.warn("[GenerationForm] Failed to parse stored preferences", error)
     }
 
     if (parsed && typeof parsed === "object") {
       hadPreferences = true
-      console.log("[GenerationForm] 🔄 Restoring preferences, setting isRestoring=true")
       isRestoringRef.current = true
 
       if (typeof parsed.prompt === "string") {
-        console.log("[GenerationForm] 📝 Restoring prompt:", parsed.prompt)
         restoredPromptRef.current = parsed.prompt
         setPrompt(parsed.prompt)
       }
       if (typeof parsed.providerId === "string") {
-        console.log("[GenerationForm] 🏢 Restoring provider:", parsed.providerId)
         setSelectedProvider(parsed.providerId)
       }
       if (typeof parsed.falModel === "string") {
-        console.log("[GenerationForm] 🤖 Restoring FAL model:", parsed.falModel)
         updateFalModel(parsed.falModel)
       }
       if (typeof parsed.newapiModel === "string") {
-        console.log("[GenerationForm] 🤖 Restoring NewAPI model:", parsed.newapiModel)
         setSelectedNewapiModel(parsed.newapiModel)
       }
       if (typeof parsed.openrouterModel === "string") {
-        console.log("[GenerationForm] 🤖 Restoring OpenRouter model:", parsed.openrouterModel)
         setSelectedOpenRouterModel(parsed.openrouterModel)
       }
       if (typeof parsed.imageSize === "string") {
-        console.log("[GenerationForm] 📐 Restoring image size:", parsed.imageSize)
         const match = parsed.imageSize.match(/^\s*(\d+)\s*x\s*(\d+)\s*$/i)
         if (match) {
           setCustomWidth(match[1])
@@ -351,7 +335,6 @@ export function GenerationForm({
         }
       }
       if (typeof parsed.numImages === "number" && Number.isFinite(parsed.numImages)) {
-        console.log("[GenerationForm] 🔢 Restoring numImages:", parsed.numImages)
         setNumImages(Math.min(4, Math.max(1, Math.round(parsed.numImages))))
       }
       if (parsed.seed === null) {
@@ -371,12 +354,9 @@ export function GenerationForm({
       if (typeof parsed.newapiStyle === "string") {
         setNewapiStyle(parsed.newapiStyle)
       }
-    } else {
-      console.log("[GenerationForm] ⚠️ No preferences found in localStorage")
     }
 
     hasInitialPreferencesRef.current = hadPreferences
-    console.log("[GenerationForm] 📌 hasInitialPreferencesRef.current =", hadPreferences)
     
     // 如果成功恢复了偏好设置，确保它们被保存（防止状态更新延迟导致丢失）
     if (hadPreferences && parsed) {
@@ -398,7 +378,6 @@ export function GenerationForm({
       }
       const frame = requestAnimationFrame(() => {
         try {
-          console.log("[GenerationForm] 💾 Saving restored preferences immediately:", completePrefs)
           window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(completePrefs))
         } catch (error) {
           console.warn("[GenerationForm] Failed to save restored preferences", error)
@@ -407,7 +386,6 @@ export function GenerationForm({
       // 标记恢复过程完成
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          console.log("[GenerationForm] ✅ Finalizing: setting isRestoring=false, hasLoadedPreferences=true")
           isRestoringRef.current = false
           setHasLoadedPreferences(true)
         })
@@ -416,7 +394,6 @@ export function GenerationForm({
     } else {
       // 没有偏好设置，直接完成
       const finalize = () => {
-        console.log("[GenerationForm] ✅ Finalizing: setting isRestoring=false, hasLoadedPreferences=true")
         isRestoringRef.current = false
         setHasLoadedPreferences(true)
       }
@@ -710,35 +687,17 @@ export function GenerationForm({
   }, [numImages, selectedNewapiModel, safeSelectedProvider])
 
   useEffect(() => {
-    console.log("[GenerationForm] 💾 SAVE PREFERENCES EFFECT", {
-      hasLoadedPreferences,
-      window: typeof window !== "undefined",
-      isRestoring: isRestoringRef.current,
-      prompt,
-      hasInitialPreferences: hasInitialPreferencesRef.current,
-    })
-    
     if (!hasLoadedPreferences || typeof window === "undefined" || isRestoringRef.current) {
-      console.log("[GenerationForm] ⏭️ Skipping save because:", {
-        hasLoadedPreferences,
-        windowUndefined: typeof window === "undefined",
-        isRestoring: isRestoringRef.current,
-      })
       return
     }
 
     // 如果恢复过 prompt，但当前 prompt 为空，说明状态还在更新中，跳过保存
     if (!prompt && restoredPromptRef.current) {
-      console.log("[GenerationForm] ⏭️ Skipping save: prompt is empty but was restored (state still updating)", {
-        restoredPrompt: restoredPromptRef.current,
-        currentPrompt: prompt,
-      })
       return
     }
 
     // 如果 prompt 已经更新为恢复的值，清除恢复标记
     if (restoredPromptRef.current && prompt === restoredPromptRef.current) {
-      console.log("[GenerationForm] ✅ Prompt state updated, clearing restoredPromptRef")
       restoredPromptRef.current = null
     }
 
@@ -758,11 +717,9 @@ export function GenerationForm({
     }
 
     try {
-      console.log("[GenerationForm] 💾 Saving to localStorage:", payload)
       window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(payload))
-      console.log("[GenerationForm] ✅ Saved successfully")
     } catch (error) {
-      console.warn("[GenerationForm] ❌ Failed to persist preferences", error)
+      console.warn("[GenerationForm] Failed to persist preferences", error)
     }
   }, [hasLoadedPreferences, prompt, safeSelectedProvider, selectedFalModel, selectedNewapiModel, selectedOpenRouterModel, effectiveImageSize, numImages, seed, safetyChecker, syncMode, newapiQuality, newapiStyle])
 
@@ -785,10 +742,8 @@ export function GenerationForm({
   }, [getEnabledProviderSettings])
 
   const resetForm = useCallback(() => {
-    console.log("[GenerationForm] 🔴 RESET FORM CALLED - Stack trace:", new Error().stack)
     const providers = getEnabledProviderSettings()
     if (providers.length === 0) {
-      console.log("[GenerationForm] 🔴 Resetting (no providers)")
       setPrompt("")
       setImageSizeSelection("square")
       setCustomWidth("")
@@ -817,7 +772,6 @@ export function GenerationForm({
       }
       return
     }
-    console.log("[GenerationForm] 🔴 Resetting form (with providers)")
     setPrompt("")
     setImageSizeSelection("square")
     setCustomWidth("")
@@ -840,7 +794,6 @@ export function GenerationForm({
     setSelectedProvider((prev) => (providers.some((provider) => provider.id === prev) ? prev : providers[0]?.id || ""))
     if (typeof window !== "undefined") {
       try {
-        console.log("[GenerationForm] 🔴 Removing preferences from localStorage")
         window.localStorage.removeItem(PREFERENCES_STORAGE_KEY)
       } catch (error) {
         console.warn("[GenerationForm] Failed to clear stored preferences", error)
@@ -852,18 +805,10 @@ export function GenerationForm({
   // 原因：它在偏好设置加载完成前就触发了 resetForm
 
   useEffect(() => {
-    console.log("[GenerationForm] 🔔 RESET SIGNAL EFFECT", {
-      resetSignal,
-      prevResetSignal: prevResetSignalRef.current,
-      hasInitialized: hasInitializedResetSignalRef.current,
-      hasLoadedPreferences,
-      isRestoring: isRestoringRef.current,
-    })
     if (resetSignal === undefined) return
     
     // 初始化：记录初始值，不触发重置
     if (!hasInitializedResetSignalRef.current) {
-      console.log("[GenerationForm] 🔔 Initializing resetSignal ref, recording initial value:", resetSignal)
       hasInitializedResetSignalRef.current = true
       prevResetSignalRef.current = resetSignal
       return
@@ -871,17 +816,14 @@ export function GenerationForm({
     
     // 如果正在恢复偏好设置，不要重置
     if (isRestoringRef.current || !hasLoadedPreferences) {
-      console.log("[GenerationForm] 🔔 Skipping reset because restoring or not loaded yet")
       return
     }
     
     // 只有当 resetSignal 真正变化时才触发重置
     if (prevResetSignalRef.current === resetSignal) {
-      console.log("[GenerationForm] 🔔 ResetSignal unchanged, skipping reset")
       return
     }
     
-    console.log("[GenerationForm] 🔔 ResetSignal changed from", prevResetSignalRef.current, "to", resetSignal, ", calling resetForm")
     prevResetSignalRef.current = resetSignal
     const frame = requestAnimationFrame(() => {
       resetForm()
@@ -1158,12 +1100,6 @@ export function GenerationForm({
                     size="sm"
                     className="gap-1 text-xs text-gray-600 hover:text-gray-900"
                     onClick={() => {
-                      console.log('[GenerationForm] Refresh clicked, provider:', {
-                        hasProvider: !!openrouterProvider,
-                        enabled: openrouterProvider?.enabled,
-                        apiKey: openrouterProvider?.apiKey ? `${openrouterProvider.apiKey.substring(0, 10)}...` : 'missing',
-                        endpoint: openrouterEndpoint,
-                      })
                       if (!openrouterProvider?.apiKey) {
                         toast({
                           title: "配置缺失",
