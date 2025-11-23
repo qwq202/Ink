@@ -113,7 +113,7 @@ export function ImageEditorDialog({ imageSrc, open, onOpenChange, onSave }: Imag
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden">
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden" showCloseButton={false}>
         <DialogTitle className="sr-only">图片编辑</DialogTitle>
         <DialogDescription className="sr-only">裁剪和旋转图片</DialogDescription>
 
