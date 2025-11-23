@@ -37,7 +37,8 @@ import {
   ChevronRight,
   Star,
   RotateCcw,
-  Package
+  Package,
+  ChevronsUpDown
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -45,7 +46,10 @@ import { useProviderSettings } from "@/hooks/use-provider-settings"
 import { TaskStatusPanel } from "@/components/task-status-panel"
 import { OnboardingWizard } from "@/components/onboarding-wizard"
 import { useOnboarding } from "@/hooks/use-onboarding"
-import type { GenerationResult } from "@/lib/api-client"
+import { VariantGeneratorDialog } from "@/components/variant-generator-dialog"
+import { ImageComparisonView } from "@/components/image-comparison-view"
+import { ImageEditorDialog } from "@/components/image-editor-dialog"
+import type { GenerationParams, GenerationResult } from "@/lib/api-client"
 
 interface CyberGeneratorProps {
   onBack?: () => void
@@ -65,6 +69,8 @@ interface ResultsPanelProps {
   onClearResults: () => void
   onDownload: (url: string) => void
   onOpenImage: (image: SelectedImageState) => void
+  onCompare?: () => void
+  onEdit?: (url: string) => void
 }
 
 const ResultsPanel = memo(function ResultsPanel({
@@ -73,6 +79,8 @@ const ResultsPanel = memo(function ResultsPanel({
   onClearResults,
   onDownload,
   onOpenImage,
+  onCompare,
+  onEdit,
 }: ResultsPanelProps) {
   if (!latestResult || latestResult.images.length === 0) {
     return (
@@ -101,6 +109,16 @@ const ResultsPanel = memo(function ResultsPanel({
         >
           <Trash2 className="h-3 w-3 mr-2" /> 清空结果
         </Button>
+        {latestResult.images.length >= 2 && onCompare && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs border-border rounded-none font-mono"
+            onClick={onCompare}
+          >
+            对比前两张
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-6">
@@ -135,6 +153,15 @@ const ResultsPanel = memo(function ResultsPanel({
                 >
                   <Maximize2 className="h-4 w-4" />
                 </Button>
+                {onEdit && (
+                  <Button
+                    size="icon"
+                    className="rounded-none border border-black text-black hover:bg-black hover:text-white"
+                    onClick={() => onEdit(image)}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button size="icon" className="rounded-none border border-black text-black hover:bg-black hover:text-white" onClick={() => onDownload(image)}>
                   <Download className="h-4 w-4" />
                 </Button>
@@ -164,6 +191,7 @@ interface HistoryPanelProps {
   onRegenerate?: (item: GenerationResult) => void
   onToggleFavorite?: (id: string, isFavorite: boolean) => void
   onBatchDownload?: (ids: string[]) => void
+  onApplyParams?: (item: GenerationResult) => void
 }
 
 const HistoryPanel = memo(function HistoryPanel({
@@ -177,6 +205,7 @@ const HistoryPanel = memo(function HistoryPanel({
   onRegenerate,
   onToggleFavorite,
   onBatchDownload,
+  onApplyParams,
 }: HistoryPanelProps) {
   const allIds = filteredHistory.map((item) => item.id)
   const isAllSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id))
@@ -314,6 +343,20 @@ const HistoryPanel = memo(function HistoryPanel({
                       <RotateCcw className="h-4 w-4" />
                     </Button>
                   )}
+                  {onApplyParams && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onApplyParams(item)
+                      }}
+                      className="h-7 w-7 hover:text-primary/80"
+                      title="填入表单以微调"
+                    >
+                      <ChevronsUpDown className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -350,9 +393,24 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
   const [historySearch, setHistorySearch] = useState("")
   const [selectedHistoryIds, setSelectedHistoryIds] = useState<Set<string>>(new Set())
   const [initialPrompt, setInitialPrompt] = useState<string | undefined>()
+  const [initialParams, setInitialParams] = useState<Partial<GenerationParams> | undefined>()
+  const [forceOnboarding, setForceOnboarding] = useState(false)
+  const [dismissedOnboarding, setDismissedOnboarding] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<string | undefined>(undefined)
+  const [comparisonOpen, setComparisonOpen] = useState(false)
+  const [comparisonItems, setComparisonItems] = useState<GenerationResult[]>([])
+  const [editingImage, setEditingImage] = useState<SelectedImageState | null>(null)
+  const [variantBaseParams, setVariantBaseParams] = useState<(GenerationParams & { providerId?: string }) | null>(null)
+  const [variantDialogOpen, setVariantDialogOpen] = useState(false)
+  const [historyFilters, setHistoryFilters] = useState<{ favoritesOnly: boolean; minRating: number | null }>({
+    favoritesOnly: false,
+    minRating: null,
+  })
+  const [detailRating, setDetailRating] = useState<number | null>(null)
+  const [detailTags, setDetailTags] = useState<string>("")
   const UI_STATE_KEY = "cyber-generator-ui"
   const { toast } = useToast()
-  const { shouldShowOnboarding, completeOnboarding, examplePrompts } = useOnboarding()
+  const { shouldShowOnboarding, completeOnboarding, hasEnabledProviders } = useOnboarding()
   const { getProvider: getProviderFromSettings } = useProviderSettings()
 
   const changeMode = useCallback((nextMode: "img2img" | "txt2img") => {
@@ -403,6 +461,8 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
     cancelGeneration,
     refreshHistory,
     toggleFavorite,
+    updateRating,
+    updateTags,
     queueStatus,
   } = useGeneration()
 
@@ -410,19 +470,96 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
   const dragCounter = useRef(0)
   const [isDragging, setIsDragging] = useState(false)
 
+  // 监听粘贴事件以支持 Ctrl+V 粘贴图片
+  useEffect(() => {
+    // 只在图生图模式下监听粘贴事件
+    if (mode !== "img2img") return
+
+    const handlePaste = async (e: ClipboardEvent) => {
+      // 如果焦点在输入框/文本域中，不处理粘贴
+      const target = e.target as HTMLElement
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+        return
+      }
+
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      const imageFiles: File[] = []
+      
+      // 遍历剪贴板项
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        
+        // 检查是否为图片
+        if (item.type.indexOf("image") !== -1) {
+          const blob = item.getAsFile()
+          if (blob) {
+            // 生成唯一文件名
+            const fileName = `pasted-image-${Date.now()}-${i}.png`
+            const file = new File([blob], fileName, { type: blob.type })
+            imageFiles.push(file)
+          }
+        }
+      }
+
+      if (imageFiles.length > 0) {
+        e.preventDefault()
+        addImages(imageFiles)
+        toast({
+          title: "已粘贴图片",
+          description: `成功添加 ${imageFiles.length} 张图片`,
+        })
+      }
+    }
+
+    window.addEventListener("paste", handlePaste)
+    
+    return () => {
+      window.removeEventListener("paste", handlePaste)
+    }
+  }, [mode, addImages, toast])
+
   const latestResult = results[0]
   const resultImageSize = useMemo(() => parseImageSize(latestResult?.params.imageSize), [latestResult?.params.imageSize])
+  const handleEditImage = useCallback(
+    (url: string) => {
+      const width = resultImageSize.width || 1024
+      const height = resultImageSize.height || 1024
+      setEditingImage({ src: url, width, height, index: 0, images: [url] })
+    },
+    [resultImageSize],
+  )
   
+  useEffect(() => {
+    if (!selectedHistoryItem) {
+      setDetailRating(null)
+      setDetailTags("")
+      return
+    }
+    setDetailRating(selectedHistoryItem.rating ?? null)
+    setDetailTags(selectedHistoryItem.tags?.join(",") ?? "")
+  }, [selectedHistoryItem])
+
   const filteredHistory = useMemo(() => {
     const query = historySearch.trim().toLowerCase()
-    if (!query) return history
-    return history.filter((item) => {
-      const provider = item.provider?.toLowerCase() ?? ""
-      const prompt = item.params.prompt?.toLowerCase() ?? ""
-      const model = item.params.modelId?.toLowerCase() ?? ""
-      return provider.includes(query) || prompt.includes(query) || model.includes(query)
-    })
-  }, [history, historySearch])
+    let data = history
+    if (historyFilters.favoritesOnly) {
+      data = data.filter((item) => item.isFavorite)
+    }
+    if (historyFilters.minRating !== null) {
+      data = data.filter((item) => (item.rating ?? 0) >= historyFilters.minRating!)
+    }
+    if (query) {
+      data = data.filter((item) => {
+        const provider = item.provider?.toLowerCase() ?? ""
+        const prompt = item.params.prompt?.toLowerCase() ?? ""
+        const model = item.params.modelId?.toLowerCase() ?? ""
+        return provider.includes(query) || prompt.includes(query) || model.includes(query)
+      })
+    }
+    return data
+  }, [history, historySearch, historyFilters])
 
   const visibleSelectedIds = useMemo(() => {
     const valid = new Set(filteredHistory.map((item) => item.id))
@@ -464,6 +601,12 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
     })
   }, [deleteHistoryItem, visibleSelectedIds])
 
+  const handleClearAllHistory = useCallback(async () => {
+    if (!window.confirm("确定要清空全部历史记录吗？此操作不可撤销。")) return
+    await clearHistory()
+    setSelectedHistoryIds(new Set())
+  }, [clearHistory])
+
   const handleRegenerate = useCallback(
     async (item: GenerationResult) => {
       const provider = getProviderFromSettings(item.provider.toLowerCase())
@@ -483,6 +626,17 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
     },
     [generate, getProviderFromSettings, toast],
   )
+
+  const handleApplyParams = useCallback((item: GenerationResult) => {
+    setInitialPrompt(item.params.prompt)
+    setInitialParams({ ...item.params, providerId: item.provider.toLowerCase() })
+    setMode("txt2img")
+    setActiveTab("generate")
+    toast({
+      title: "已填入表单",
+      description: "你可以微调后再次生成",
+    })
+  }, [toast])
 
   const handleToggleFavorite = useCallback(
     async (id: string, isFavorite: boolean) => {
@@ -599,6 +753,8 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
     return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
   }, [])
 
+  const showOnboarding = !dismissedOnboarding && (shouldShowOnboarding || forceOnboarding)
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans overflow-hidden flex flex-col lg:flex-row">
       {/* LEFT PANEL: CONTROLS */}
@@ -621,9 +777,32 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
                 </div>
             </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)} className="rounded-none hover:bg-primary/20 text-primary">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setForceOnboarding(true)
+                  setDismissedOnboarding(false)
+                }}
+                className="rounded-none hover:bg-primary/20 text-primary"
+                title="查看新手引导"
+              >
+                <Sparkles className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setSettingsTab(undefined)
+                  setSettingsOpen(true)
+                }}
+                className="rounded-none hover:bg-primary/20 text-primary"
+                title="打开设置"
+              >
                 <Settings className="h-5 w-5" />
-            </Button>
+              </Button>
+            </div>
         </div>
 
         {/* Scrollable Form Area */}
@@ -674,6 +853,9 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
                   <div className="text-center">
                       <p className="text-xs font-mono text-primary font-bold">上传源图</p>
                       <p className="text-[10px] text-muted-foreground mt-1">已上传 {upload.images.length} 张</p>
+                      <p className="text-[10px] text-muted-foreground/70 mt-1">
+                        支持点击上传或 <kbd className="px-1 py-0.5 bg-muted rounded text-[9px] font-mono">Ctrl+V</kbd> 粘贴
+                      </p>
                   </div>
               </div>
                <input
@@ -713,6 +895,11 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
                 resetSignal={formResetSignal}
                 initialPrompt={initialPrompt}
                 onPromptSet={() => setInitialPrompt(undefined)}
+                initialParams={initialParams}
+                onOpenSettings={(tab) => {
+                  setSettingsTab(tab)
+                  setSettingsOpen(true)
+                }}
             />
         </div>
       </aside>
@@ -761,10 +948,76 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
                   onClearResults={clearResults}
                   onDownload={handleDownload}
                   onOpenImage={handleOpenImage}
+                  onEdit={handleEditImage}
+                  onCompare={() => {
+                    if (!latestResult || latestResult.images.length < 2) return
+                    setComparisonItems([
+                      { ...latestResult, images: [latestResult.images[0]] },
+                      { ...latestResult, images: [latestResult.images[1]] },
+                    ])
+                    setComparisonOpen(true)
+                  }}
                 />
               </TabsContent>
 
               <TabsContent value="history" className="h-full m-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+                  <div className="text-xs text-muted-foreground font-mono space-x-2">
+                    <span>共 {history.length} 条</span>
+                    {historySearch.trim() && <span>筛选出 {filteredHistory.length} 条</span>}
+                    {selectedHistoryIds.size > 0 && (
+                      <span className="text-primary">已选 {selectedHistoryIds.size} 条</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <div className="relative">
+                      <Input
+                        value={historySearch}
+                        onChange={(e) => setHistorySearch(e.target.value)}
+                        placeholder="搜索模型/提示词/供应商..."
+                        className="pr-8 h-9"
+                      />
+                      {historySearch && (
+                        <button
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                          onClick={() => setHistorySearch("")}
+                          aria-label="清空搜索"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    <Button
+                      variant={historyFilters.favoritesOnly ? "default" : "outline"}
+                      size="sm"
+                      onClick={() =>
+                        setHistoryFilters((prev) => ({ ...prev, favoritesOnly: !prev.favoritesOnly }))
+                      }
+                    >
+                      只看收藏
+                    </Button>
+                    <Button
+                      variant={historyFilters.minRating ? "default" : "outline"}
+                      size="sm"
+                      onClick={() =>
+                        setHistoryFilters((prev) => ({
+                          ...prev,
+                          minRating: prev.minRating ? null : 4,
+                        }))
+                      }
+                    >
+                      {historyFilters.minRating ? `评分≥${historyFilters.minRating}` : "评分筛选"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearAllHistory}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      清空全部
+                    </Button>
+                  </div>
+                </div>
                 <HistoryPanel
                   filteredHistory={filteredHistory}
                   onSelectItem={setSelectedHistoryItem}
@@ -776,20 +1029,38 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
                   onRegenerate={handleRegenerate}
                   onToggleFavorite={handleToggleFavorite}
                   onBatchDownload={handleBatchDownload}
+                  onApplyParams={handleApplyParams}
                 />
               </TabsContent>
             </div>
         </Tabs>
       </main>
 
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        activeTab={settingsTab}
+        onTabChange={setSettingsTab}
+      />
 
-      {shouldShowOnboarding && (
+      {showOnboarding && (
         <OnboardingWizard
-          onComplete={completeOnboarding}
-          onOpenSettings={() => setSettingsOpen(true)}
+          hasEnabledProviders={hasEnabledProviders}
+          onComplete={(finalized) => {
+            if (finalized) {
+              completeOnboarding()
+            } else {
+              setDismissedOnboarding(true)
+            }
+            setForceOnboarding(false)
+          }}
+          onOpenSettings={() => {
+            setSettingsOpen(true)
+            setSettingsTab(undefined)
+          }}
           onSelectExample={(example) => {
             setInitialPrompt(example.prompt)
+            setInitialParams({ prompt: example.prompt, images: undefined })
             changeMode(example.mode)
             completeOnboarding()
           }}
@@ -912,6 +1183,80 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
                     <p>图片数量: {selectedHistoryItem.images.length} 张</p>
                     <p>生成时间: {new Date(selectedHistoryItem.timestamp).toLocaleString("zh-CN")}</p>
                   </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleApplyParams(selectedHistoryItem)}
+                    >
+                      填入表单
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setVariantBaseParams({ ...(selectedHistoryItem.params as GenerationParams), providerId: selectedHistoryItem.provider.toLowerCase() })
+                        setVariantDialogOpen(true)
+                      }}
+                    >
+                      生成变体
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold">评分与标签</h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <Button
+                        key={n}
+                        size="sm"
+                        variant={detailRating === n ? "default" : "outline"}
+                        onClick={() => setDetailRating(n)}
+                        className="h-8 w-8 p-0"
+                      >
+                        {n}★
+                      </Button>
+                    ))}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setDetailRating(null)}
+                    >
+                      清除
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        await updateRating(selectedHistoryItem.id, detailRating)
+                        await refreshHistory()
+                        toast({ title: "已保存评分" })
+                      }}
+                    >
+                      保存评分
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Input
+                      value={detailTags}
+                      onChange={(e) => setDetailTags(e.target.value)}
+                      placeholder="添加标签，逗号分隔"
+                      className="w-64"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        const tags = detailTags
+                          .split(",")
+                          .map((t) => t.trim())
+                          .filter(Boolean)
+                        await updateTags(selectedHistoryItem.id, tags)
+                        await refreshHistory()
+                        toast({ title: "已保存标签" })
+                      }}
+                    >
+                      保存标签
+                    </Button>
+                  </div>
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold mb-2">所有图片 ({selectedHistoryItem.images.length})</h3>
@@ -977,6 +1322,62 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
           })()}
         </DialogContent>
       </Dialog>
+
+      <ImageEditorDialog
+        imageSrc={editingImage?.src || ""}
+        open={!!editingImage}
+        onOpenChange={(open) => {
+          if (!open) setEditingImage(null)
+        }}
+        onSave={async (editedUrl) => {
+          try {
+            const res = await fetch(editedUrl)
+            const blob = await res.blob()
+            const file = new File([blob], `edited-${Date.now()}.png`, { type: "image/png" })
+            upload.addImages([file])
+            setMode("img2img")
+            toast({ title: "已添加到图生图输入", description: "编辑后的图片已放入上传区" })
+          } catch (error) {
+            console.error(error)
+            toast({ title: "添加失败", description: "无法将编辑结果加入输入", variant: "destructive" })
+          } finally {
+            setEditingImage(null)
+          }
+        }}
+      />
+
+      <ImageComparisonView
+        items={comparisonItems}
+        open={comparisonOpen}
+        onOpenChange={setComparisonOpen}
+        onDownload={handleDownload}
+      />
+
+      {variantBaseParams && (
+        <VariantGeneratorDialog
+          baseParams={variantBaseParams}
+          open={variantDialogOpen}
+          onOpenChange={(open) => {
+            setVariantDialogOpen(open)
+            if (!open) {
+              setVariantBaseParams(null)
+            }
+          }}
+          onGenerate={async (paramsList) => {
+            const providerId = (variantBaseParams as any).providerId || "fal"
+            const provider = getProviderFromSettings(providerId) || getProviderFromSettings("fal") || getProviderFromSettings("newapi") || getProviderFromSettings("openrouter")
+            if (!provider) {
+              toast({ title: "供应商未配置", description: "请先在设置中配置供应商", variant: "destructive" })
+              setVariantDialogOpen(false)
+              return
+            }
+            for (const p of paramsList) {
+              await generate(provider, p)
+            }
+            toast({ title: "已提交变体生成", description: `共 ${paramsList.length} 个任务已加入队列` })
+          }}
+        />
+      )}
     </div>
   )
 }
