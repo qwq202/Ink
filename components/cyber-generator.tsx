@@ -1331,15 +1331,29 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
         }}
         onSave={async (editedUrl) => {
           try {
+            // 下载裁剪后的图片到本地
             const res = await fetch(editedUrl)
             const blob = await res.blob()
-            const file = new File([blob], `edited-${Date.now()}.png`, { type: "image/png" })
-            upload.addImages([file])
-            setMode("img2img")
-            toast({ title: "已添加到图生图输入", description: "编辑后的图片已放入上传区" })
+            const downloadUrl = URL.createObjectURL(blob)
+            const a = document.createElement("a")
+            a.href = downloadUrl
+            a.download = `edited-${Date.now()}.png`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(downloadUrl)
+            
+            toast({ 
+              title: "保存成功", 
+              description: "裁剪后的图片已下载到本地" 
+            })
           } catch (error) {
             console.error(error)
-            toast({ title: "添加失败", description: "无法将编辑结果加入输入", variant: "destructive" })
+            toast({ 
+              title: "保存失败", 
+              description: "无法保存裁剪后的图片", 
+              variant: "destructive" 
+            })
           } finally {
             setEditingImage(null)
           }
