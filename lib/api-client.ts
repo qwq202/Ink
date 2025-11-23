@@ -13,7 +13,14 @@ export interface GenerationParams {
   modelId?: string
   quality?: string
   style?: string
+  thinkingLevel?: "low" | "high"
+  mediaResolution?: "media_resolution_low" | "media_resolution_medium" | "media_resolution_high"
+  aspectRatio?: "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "4:5" | "5:4" | "9:16" | "16:9" | "21:9"
   openaiApiKey?: string
+  // FAL nano-banana-pro 专用参数
+  falNanoBananaAspectRatio?: "21:9" | "16:9" | "3:2" | "4:3" | "5:4" | "1:1" | "4:5" | "3:4" | "2:3" | "9:16"
+  falNanoBananaResolution?: "1K" | "2K" | "4K"
+  falNanoBananaOutputFormat?: "jpeg" | "png" | "webp"
 }
 
 export interface GenerationResult {
@@ -158,6 +165,22 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
     payload.openai_api_key = params.openaiApiKey
   }
 
+  // nano-banana-pro 专用参数
+  const isNanoBananaPro = params.modelId === "fal-ai/nano-banana-pro"
+  if (isNanoBananaPro) {
+    // 使用专用参数覆盖默认值
+    if (params.falNanoBananaAspectRatio) {
+      payload.aspect_ratio = params.falNanoBananaAspectRatio
+      delete payload.image_size // nano-banana-pro 使用 aspect_ratio 而不是 image_size
+    }
+    if (params.falNanoBananaResolution) {
+      payload.resolution = params.falNanoBananaResolution
+    }
+    if (params.falNanoBananaOutputFormat) {
+      payload.output_format = params.falNanoBananaOutputFormat
+    }
+  }
+
   await logDebug({
     message: "FAL request dispatch",
     details: {
@@ -172,6 +195,13 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
       hasImageInput: Boolean(params.images?.length),
       modelId: params.modelId,
       requestOrigin: provider.requestOrigin ?? "client",
+      ...(isNanoBananaPro && {
+        nanoBananaPro: {
+          aspectRatio: params.falNanoBananaAspectRatio,
+          resolution: params.falNanoBananaResolution,
+          outputFormat: params.falNanoBananaOutputFormat,
+        },
+      }),
     },
   })
 
@@ -641,7 +671,20 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
   }
 
   async function callNewAPI(): Promise<string[]> {
-    const newapiModel = params.modelId || "dall-e-2"
+    const allowedModels = ["gpt-image-1", "dall-e-3", "dall-e-2"]
+    const normalizeModel = (modelId?: string) => {
+      if (!modelId) return "gpt-image-1"
+      const lower = modelId.toLowerCase()
+      if (allowedModels.includes(lower)) return lower
+      if (lower.startsWith("gemini")) return lower // 直接透传 gemini-* 模型
+      // 尝试粗略匹配
+      if (lower.includes("gpt-image-1")) return "gpt-image-1"
+      if (lower.includes("dall-e-3")) return "dall-e-3"
+      if (lower.includes("dall-e-2")) return "dall-e-2"
+      return "gpt-image-1"
+    }
+    const newapiModel = normalizeModel(params.modelId)
+    const responseFormat = newapiModel === "gpt-image-1" || newapiModel.startsWith("gemini") ? "b64_json" : "url"
     const useServerProxy = (provider.requestOrigin ?? "server") === "server"
     const maxAttempts = 3
     const retryDelay = (attempt: number) =>
@@ -787,11 +830,13 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
       details: {
         provider: provider.id,
         endpoint: provider.endpoint,
+        model: newapiModel,
         promptPreview: params.prompt.substring(0, 120),
         promptLength: params.prompt.length,
         numImages: params.numImages,
         imageSize: normalizedImageSize,
         useServerProxy,
+        responseFormat,
       },
     })
 
@@ -805,7 +850,7 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
         formData.append("prompt", params.prompt)
         formData.append("n", params.numImages.toString())
         formData.append("size", normalizedImageSize)
-        formData.append("response_format", "url")
+        formData.append("response_format", responseFormat)
 
         if (params.quality) {
           formData.append("quality", params.quality)
@@ -813,6 +858,19 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
 
         if (params.style && newapiModel === "dall-e-3") {
           formData.append("style", params.style)
+        }
+
+        // Gemini 特定参数
+        if (newapiModel.startsWith("gemini")) {
+          if (params.thinkingLevel) {
+            formData.append("thinking_level", params.thinkingLevel)
+          }
+          if (params.mediaResolution) {
+            formData.append("media_resolution", params.mediaResolution)
+          }
+          if (params.aspectRatio) {
+            formData.append("aspect_ratio", params.aspectRatio)
+          }
         }
 
         return fetch("/api/newapi/generate", {
@@ -833,7 +891,7 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
         prompt: params.prompt,
         n: params.numImages,
         size: normalizedImageSize,
-        response_format: "url",
+        response_format: responseFormat,
       }
 
       if (params.quality) {
@@ -1061,6 +1119,99 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
     return images
   }
 
+  async function callGeminiAPI(): Promise<string[]> {
+    const geminiModel = params.modelId || "gemini-2.5-flash-image"
+    const useServerProxy = (provider.requestOrigin ?? "server") === "server"
+
+    await logDebug({
+      message: "Gemini image generation dispatch",
+      details: {
+        provider: provider.id,
+        model: geminiModel,
+        promptPreview: params.prompt.substring(0, 120),
+        promptLength: params.prompt.length,
+        numImages: params.numImages,
+        imageSize: normalizedImageSize,
+        useServerProxy,
+      },
+    })
+
+    const performGeneration = () => {
+      if (useServerProxy) {
+        const formData = new FormData()
+        formData.append("apiKey", provider.apiKey)
+        formData.append("model", geminiModel)
+        formData.append("prompt", params.prompt)
+        formData.append("size", normalizedImageSize)
+
+        // Gemini 特定参数
+        if (params.thinkingLevel) {
+          formData.append("thinking_level", params.thinkingLevel)
+        }
+        if (params.mediaResolution) {
+          formData.append("media_resolution", params.mediaResolution)
+        }
+        if (params.aspectRatio) {
+          formData.append("aspect_ratio", params.aspectRatio)
+        }
+
+        return fetch("/api/gemini/generate", {
+          method: "POST",
+          body: formData,
+        })
+      }
+
+      // 客户端直接调用（不推荐，会暴露 API Key）
+      throw new Error("Gemini API 需要通过服务器代理调用")
+    }
+
+    const response = await performGeneration()
+    const data = await parseJson(response)
+
+    if (!response.ok) {
+      const message = data?.error?.message || data?.message || "Gemini image generation failed"
+      await logDebug({
+        level: "error",
+        message: "Gemini image generation failed",
+        details: {
+          provider: provider.id,
+          status: response.status,
+          error: message,
+        },
+      })
+      throw new Error(`Gemini API error: ${message}`)
+    }
+
+    const images =
+      data?.data?.map((item: { b64_json?: string }) => {
+        if (item?.b64_json) return `data:image/png;base64,${item.b64_json}`
+        return null
+      }) || []
+
+    if (!images.length) {
+      await logDebug({
+        level: "warn",
+        message: "Gemini returned no images",
+        details: {
+          provider: provider.id,
+        },
+      })
+      throw new Error("Gemini did not return any images")
+    }
+
+    const filtered = images.filter(Boolean) as string[]
+
+    await logDebug({
+      message: "Gemini image generation completed",
+      details: {
+        provider: provider.id,
+        imageCount: filtered.length,
+      },
+    })
+
+    return filtered
+  }
+
   switch (provider.id) {
     case "fal":
       return await callFalAPI(provider, params)
@@ -1070,6 +1221,8 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
       return await callNewAPI()
     case "openrouter":
       return await callOpenRouterAPI()
+    case "gemini":
+      return await callGeminiAPI()
     default:
       throw new Error(`Unknown provider: ${provider.id}`)
   }

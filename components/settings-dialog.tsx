@@ -16,15 +16,18 @@ import { useToast } from "@/hooks/use-toast"
 interface SettingsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  activeTab?: string
+  onTabChange?: (tab: string) => void
 }
 
-export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: SettingsDialogProps) {
   const { settings, updateProvider } = useProviderSettings()
   const [showFalKey, setShowFalKey] = useState(false)
   const [showFalOpenAIKey, setShowFalOpenAIKey] = useState(false)
   const [showOpenAIKey, setShowOpenAIKey] = useState(false)
   const [showNewApiKey, setShowNewApiKey] = useState(false)
   const [showOpenRouterKey, setShowOpenRouterKey] = useState(false)
+  const [showGeminiKey, setShowGeminiKey] = useState(false)
   const { theme: activeTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const { toast } = useToast()
@@ -59,6 +62,12 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     enabled: false,
   })
 
+  const [geminiConfig, setGeminiConfig] = useState({
+    apiKey: "",
+    enabled: false,
+  })
+  const [internalTab, setInternalTab] = useState("fal")
+  const safetyNote = "密钥仅保存在本地加密存储，不会上传到服务器。"
 
   useEffect(() => {
     // Mount check for client-side only rendering
@@ -101,6 +110,11 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         endpoint: settings.openrouter.endpoint || "https://openrouter.ai/api/v1",
         enabled: settings.openrouter.enabled,
       })
+
+      setGeminiConfig({
+        apiKey: settings.gemini.apiKey,
+        enabled: settings.gemini.enabled,
+      })
     }
 
     if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
@@ -142,6 +156,17 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     })
   }
 
+  const handleSaveGemini = async () => {
+    await updateProvider("gemini", {
+      ...geminiConfig,
+      endpoint: "https://generativelanguage.googleapis.com",
+    })
+    toast({
+      title: "配置已保存",
+      description: "Gemini 配置已成功保存",
+    })
+  }
+
   const handleSaveOpenRouter = async () => {
     if (!openrouterConfig.apiKey) {
       toast({
@@ -172,6 +197,75 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     })
   }
 
+  const testFalConnection = async () => {
+    try {
+      const res = await fetch("/api/fal/models?category=text-to-image", {
+        headers: falConfig.apiKey ? { authorization: `Bearer ${falConfig.apiKey}` } : undefined,
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      toast({ title: "FAL 连接正常" })
+    } catch (error) {
+      toast({
+        title: "FAL 连接失败",
+        description: error instanceof Error ? error.message : "请求错误",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const testOpenAIConnection = async () => {
+    try {
+      const res = await fetch(openaiConfig.endpoint || "https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openaiConfig.apiKey}`,
+        },
+        body: JSON.stringify({ prompt: "ping", model: "gpt-image-1" }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      toast({ title: "OpenAI 连接正常" })
+    } catch (error) {
+      toast({
+        title: "OpenAI 连接失败",
+        description: error instanceof Error ? error.message : "请求错误",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const testNewApiConnection = async () => {
+    try {
+      const res = await fetch((newapiConfig.endpoint || "").replace(/\/$/, "") + "/models", {
+        headers: newapiConfig.apiKey ? { Authorization: `Bearer ${newapiConfig.apiKey}` } : undefined,
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      toast({ title: "NewAPI 连接正常" })
+    } catch (error) {
+      toast({
+        title: "NewAPI 连接失败",
+        description: error instanceof Error ? error.message : "请求错误",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const testOpenRouterConnection = async () => {
+    try {
+      const res = await fetch(openrouterConfig.endpoint || "https://openrouter.ai/api/v1/models", {
+        headers: openrouterConfig.apiKey ? { Authorization: `Bearer ${openrouterConfig.apiKey}` } : undefined,
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      toast({ title: "OpenRouter 连接正常" })
+    } catch (error) {
+      toast({
+        title: "OpenRouter 连接失败",
+        description: error instanceof Error ? error.message : "请求错误",
+        variant: "destructive",
+      })
+    }
+  }
+
   const currentTheme = mounted ? activeTheme ?? "system" : "system"
 
   return (
@@ -183,12 +277,20 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         </DialogHeader>
 
         <div className="mt-4 space-y-6">
-          <Tabs defaultValue="fal" className="space-y-2">
+          <Tabs
+            value={activeTab ?? internalTab}
+            onValueChange={(val) => {
+              setInternalTab(val)
+              onTabChange?.(val)
+            }}
+            className="space-y-2"
+          >
             <TabsList className="flex w-full bg-muted border-border rounded-none p-0">
               <TabsTrigger value="fal" className="flex-1 rounded-none data-[state=active]:bg-card data-[state=active]:text-primary font-mono text-xs uppercase">FAL</TabsTrigger>
               <TabsTrigger value="openai" className="flex-1 rounded-none data-[state=active]:bg-card data-[state=active]:text-primary font-mono text-xs uppercase">OpenAI</TabsTrigger>
               <TabsTrigger value="newapi" className="flex-1 rounded-none data-[state=active]:bg-card data-[state=active]:text-primary font-mono text-xs uppercase">NewAPI</TabsTrigger>
               <TabsTrigger value="openrouter" className="flex-1 rounded-none data-[state=active]:bg-card data-[state=active]:text-primary font-mono text-xs uppercase">OpenRouter</TabsTrigger>
+              <TabsTrigger value="gemini" className="flex-1 rounded-none data-[state=active]:bg-card data-[state=active]:text-primary font-mono text-xs uppercase">Gemini</TabsTrigger>
             </TabsList>
 
             <TabsContent value="fal" className="space-y-4">
@@ -229,6 +331,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                     {showFalKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
+                <p className="text-[10px] text-gray-500 mt-1">{safetyNote}</p>
               </div>
 
               <div className="space-y-2">
@@ -254,6 +357,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 <p className="text-xs text-gray-500">
                   仅当选择 FAL 的 BYOK 模型（如 gpt-image-1/byok）时需要填写。留空将尝试使用 OpenAI 供应商中的 Key。
                 </p>
+                <p className="text-[10px] text-gray-500">{safetyNote}</p>
               </div>
 
               <div className="space-y-2">
@@ -281,10 +385,15 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 模型调用地址会自动匹配所选模型，无需手动填写端点。
               </p>
 
-              <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveFal}>
-                <Save className="mr-2 h-4 w-4" />
-                保存配置
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveFal}>
+                  <Save className="mr-2 h-4 w-4" />
+                  保存配置
+                </Button>
+                <Button variant="outline" className="rounded-none" onClick={testFalConnection}>
+                  测试连接
+                </Button>
+              </div>
             </TabsContent>
 
             <TabsContent value="openai" className="space-y-4">
@@ -325,6 +434,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                     {showOpenAIKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
+                <p className="text-[10px] text-gray-500 mt-1">{safetyNote}</p>
               </div>
 
               <div className="space-y-2">
@@ -338,10 +448,15 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 />
               </div>
 
-              <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveOpenAI}>
-                <Save className="mr-2 h-4 w-4" />
-                保存配置
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveOpenAI}>
+                  <Save className="mr-2 h-4 w-4" />
+                  保存配置
+                </Button>
+                <Button variant="outline" className="rounded-none" onClick={testOpenAIConnection}>
+                  测试连接
+                </Button>
+              </div>
             </TabsContent>
 
             <TabsContent value="newapi" className="space-y-4">
@@ -382,6 +497,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                     {showNewApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
+                <p className="text-[10px] text-gray-500 mt-1">{safetyNote}</p>
               </div>
 
               <div className="space-y-2">
@@ -398,10 +514,15 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 </p>
               </div>
 
-              <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveNewAPI}>
-                <Save className="mr-2 h-4 w-4" />
-                保存配置
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveNewAPI}>
+                  <Save className="mr-2 h-4 w-4" />
+                  保存配置
+                </Button>
+                <Button variant="outline" className="rounded-none" onClick={testNewApiConnection}>
+                  测试连接
+                </Button>
+              </div>
 
               <p className="border border-dashed border-border bg-muted/20 px-3 py-2 text-[10px] text-muted-foreground font-mono rounded-none">
                 &gt;&gt; 模型列表首次加载后会自动缓存。
@@ -447,6 +568,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                     {showOpenRouterKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
+                <p className="text-[10px] text-gray-500 mt-1">{safetyNote}</p>
                 <p className="text-[10px] text-muted-foreground font-mono">
                   &gt;&gt; 前往 <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">OPENROUTER.AI</a> 获取密钥
                 </p>
@@ -465,13 +587,86 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 </p>
               </div>
 
-              <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveOpenRouter}>
+              <div className="grid grid-cols-2 gap-2">
+                <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveOpenRouter}>
+                  <Save className="mr-2 h-4 w-4" />
+                  保存配置
+                </Button>
+                <Button variant="outline" className="rounded-none" onClick={testOpenRouterConnection}>
+                  测试连接
+                </Button>
+              </div>
+
+              <p className="border border-dashed border-border bg-muted/20 px-3 py-2 text-[10px] text-muted-foreground font-mono rounded-none">
+                &gt;&gt; 模型列表会自动缓存，并自动筛选出可生成图像的模型。
+              </p>
+            </TabsContent>
+
+            <TabsContent value="gemini" className="space-y-4">
+              <div className="border border-primary/20 bg-primary/10 px-3 py-2 rounded-none">
+                <p className="text-xs text-primary font-mono">
+                  &gt;&gt; 系统提示：保存后配置才会生效
+                </p>
+              </div>
+              
+              <div className="flex items-center justify-between border border-border bg-muted/30 p-4 rounded-none">
+                <div className="space-y-0.5">
+                  <Label className="text-base text-foreground font-mono">启用 Gemini</Label>
+                  <p className="text-xs text-muted-foreground font-mono">使用 Google Gemini 图片生成接口</p>
+                </div>
+                <Switch
+                  checked={geminiConfig.enabled}
+                  onCheckedChange={(checked) => setGeminiConfig({ ...geminiConfig, enabled: checked })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gemini-key" className="text-foreground font-mono text-xs">Gemini API Key</Label>
+                <div className="relative">
+                  <Input
+                    id="gemini-key"
+                    type={showGeminiKey ? "text" : "password"}
+                    placeholder="请输入 Gemini API 密钥"
+                    value={geminiConfig.apiKey}
+                    onChange={(e) => setGeminiConfig({ ...geminiConfig, apiKey: e.target.value })}
+                    className="bg-background border-border text-foreground font-mono text-xs rounded-none focus-visible:ring-primary"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground rounded-none"
+                    onClick={() => setShowGeminiKey(!showGeminiKey)}
+                  >
+                    {showGeminiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">{safetyNote}</p>
+                <p className="text-[10px] text-muted-foreground font-mono">
+                  &gt;&gt; 前往 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google AI Studio</a> 获取密钥
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gemini-endpoint" className="text-foreground font-mono text-xs">API 地址</Label>
+                <Input
+                  id="gemini-endpoint"
+                  value="https://generativelanguage.googleapis.com"
+                  disabled
+                  className="bg-muted border-border text-muted-foreground cursor-not-allowed font-mono text-xs rounded-none"
+                />
+                <p className="text-[10px] text-muted-foreground font-mono">
+                  &gt;&gt; 固定接口地址，无需修改
+                </p>
+              </div>
+
+              <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveGemini}>
                 <Save className="mr-2 h-4 w-4" />
                 保存配置
               </Button>
 
               <p className="border border-dashed border-border bg-muted/20 px-3 py-2 text-[10px] text-muted-foreground font-mono rounded-none">
-                &gt;&gt; 模型列表会自动缓存，并自动筛选出可生成图像的模型。
+                &gt;&gt; 支持 Gemini 2.5 Flash Image 和 Gemini 3 Pro Image 模型，可生成最高 4K 分辨率图片。
               </p>
             </TabsContent>
           </Tabs>

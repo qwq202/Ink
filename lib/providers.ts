@@ -13,6 +13,7 @@ export interface ProviderSettings {
   openai: ProviderConfig
   newapi: ProviderConfig
   openrouter: ProviderConfig
+  gemini: ProviderConfig
 }
 
 const DEFAULT_PROVIDERS: ProviderSettings = {
@@ -45,6 +46,14 @@ const DEFAULT_PROVIDERS: ProviderSettings = {
     name: "OpenRouter",
     apiKey: "",
     endpoint: "https://openrouter.ai/api/v1",
+    requestOrigin: "server",
+    enabled: false,
+  },
+  gemini: {
+    id: "gemini",
+    name: "Gemini (Google AI)",
+    apiKey: "",
+    endpoint: "https://generativelanguage.googleapis.com",
     requestOrigin: "server",
     enabled: false,
   },
@@ -117,6 +126,7 @@ export async function loadProviderSettings(): Promise<ProviderSettings> {
       openai: { ...DEFAULT_PROVIDERS.openai, ...stored?.openai },
       newapi: { ...DEFAULT_PROVIDERS.newapi, ...stored?.newapi },
       openrouter: { ...DEFAULT_PROVIDERS.openrouter, ...stored?.openrouter },
+      gemini: { ...DEFAULT_PROVIDERS.gemini, ...stored?.gemini },
     }
   } catch (error) {
     console.error("Failed to decrypt provider settings:", error)

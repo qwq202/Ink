@@ -51,18 +51,6 @@ export function TaskStatusPanel({ tasks, onCancel, className }: TaskStatusPanelP
     return `${(ms / 60000).toFixed(1)}m`
   }
 
-  const getEstimatedTime = (task: Task) => {
-    if (task.status === "completed" && task.startedAt && task.completedAt) {
-      return formatTime(task.completedAt - task.startedAt)
-    }
-    if (task.status === "running" && task.startedAt) {
-      const elapsed = Date.now() - task.startedAt
-      const estimated = task.estimatedTime || 30000 // Default 30s
-      return `预计剩余 ${formatTime(Math.max(0, estimated - elapsed))}`
-    }
-    return null
-  }
-
   const TaskItem = ({ task }: { task: Task }) => {
     const statusConfig = {
       running: { icon: Loader2, color: "text-blue-500", bg: "bg-blue-50", label: "生成中" },
@@ -94,8 +82,8 @@ export function TaskStatusPanel({ tasks, onCancel, className }: TaskStatusPanelP
           </div>
           {task.status === "running" && (
             <div className="space-y-1">
-              <Progress value={task.progress || 0} className="h-1.5" />
-              <p className="text-xs text-gray-500">{getEstimatedTime(task)}</p>
+              <Progress value={undefined} className="h-1.5 animate-pulse" />
+              <p className="text-xs text-gray-500">预计耗时 20-40 秒，具体取决于模型与队列</p>
             </div>
           )}
           {task.status === "failed" && task.error && (
@@ -199,4 +187,3 @@ export function TaskStatusPanel({ tasks, onCancel, className }: TaskStatusPanelP
     </>
   )
 }
-

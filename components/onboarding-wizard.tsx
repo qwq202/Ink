@@ -4,17 +4,23 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Sparkles, Settings, ArrowRight, X } from "lucide-react"
+import { Sparkles, Settings, ArrowRight } from "lucide-react"
 import { useOnboarding, type ExamplePrompt } from "@/hooks/use-onboarding"
 import { cn } from "@/lib/utils"
 
 interface OnboardingWizardProps {
-  onComplete: () => void
+  onComplete: (finalized?: boolean) => void
   onOpenSettings: () => void
   onSelectExample?: (prompt: ExamplePrompt) => void
+  hasEnabledProviders?: boolean
 }
 
-export function OnboardingWizard({ onComplete, onOpenSettings, onSelectExample }: OnboardingWizardProps) {
+export function OnboardingWizard({
+  onComplete,
+  onOpenSettings,
+  onSelectExample,
+  hasEnabledProviders = false,
+}: OnboardingWizardProps) {
   const [currentStep, setCurrentStep] = useState(0)
   const { examplePrompts } = useOnboarding()
 
@@ -42,13 +48,13 @@ export function OnboardingWizard({ onComplete, onOpenSettings, onSelectExample }
       content: (
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            点击右上角的设置图标，配置你的 API 密钥。支持以下供应商：
+            点击右上角的设置图标，配置你的 API 密钥。<span className="font-medium text-gray-900">请至少启用并保存 1 个供应商</span>，否则无法开始生成。
           </p>
           <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="p-2 bg-gray-50 rounded">FAL Queue</div>
-            <div className="p-2 bg-gray-50 rounded">OpenAI</div>
-            <div className="p-2 bg-gray-50 rounded">NewAPI</div>
-            <div className="p-2 bg-gray-50 rounded">OpenRouter</div>
+            <div className="p-2 bg-gray-50 rounded">FAL Queue · 多模型，速度快</div>
+            <div className="p-2 bg-gray-50 rounded">OpenAI · DALL·E / GPT-Image</div>
+            <div className="p-2 bg-gray-50 rounded">NewAPI · 兼容 OpenAI 协议</div>
+            <div className="p-2 bg-gray-50 rounded">OpenRouter · 模型选择丰富</div>
           </div>
           <Button onClick={onOpenSettings} className="w-full">
             <Settings className="mr-2 h-4 w-4" />
@@ -114,28 +120,31 @@ export function OnboardingWizard({ onComplete, onOpenSettings, onSelectExample }
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1)
-    } else {
-      onComplete()
+      return
     }
+
+    if (!hasEnabledProviders) {
+      onOpenSettings()
+    }
+    onComplete(true)
   }
 
   const handleSkip = () => {
-    onComplete()
+    // 稍后再看：关闭但不标记完成
+    onComplete(false)
   }
 
   return (
-    <Dialog
-      open={true}
-      onOpenChange={(isOpen) => {
-        if (!isOpen) {
-          onComplete()
-        }
-      }}
-    >
+    <Dialog open={true} onOpenChange={(isOpen) => !isOpen && onComplete(false)}>
       <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{steps[currentStep].title}</DialogTitle>
-          <DialogDescription>{steps[currentStep].description}</DialogDescription>
+        <DialogHeader className="flex items-start justify-between gap-2">
+          <div>
+            <DialogTitle>{steps[currentStep].title}</DialogTitle>
+            <DialogDescription>{steps[currentStep].description}</DialogDescription>
+            <p className="text-xs text-gray-400 mt-1">
+              步骤 {currentStep + 1} / {steps.length}
+            </p>
+          </div>
         </DialogHeader>
 
         <div className="py-4">{steps[currentStep].content}</div>
@@ -157,12 +166,17 @@ export function OnboardingWizard({ onComplete, onOpenSettings, onSelectExample }
           </div>
           <div className="flex items-center gap-2">
             {currentStep < steps.length - 1 && (
-              <Button variant="ghost" onClick={handleSkip}>
-                跳过
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={handleSkip}>
+                  稍后再看
+                </Button>
+                <Button variant="outline" onClick={() => onComplete(true)}>
+                  不再显示
+                </Button>
+              </div>
             )}
             <Button onClick={handleNext}>
-              {currentStep < steps.length - 1 ? "下一步" : "开始使用"}
+              {currentStep < steps.length - 1 ? "下一步" : hasEnabledProviders ? "开始使用" : "去设置"}
             </Button>
           </div>
         </div>
