@@ -4,6 +4,7 @@ import { useState, useCallback } from "react"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RotateCw, Check, X } from "lucide-react"
 import Cropper from "react-easy-crop"
 import type { Area, Point } from "react-easy-crop"
@@ -88,6 +89,8 @@ export function ImageEditorDialog({ imageSrc, open, onOpenChange, onSave }: Imag
   const [rotation, setRotation] = useState(0)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
   const [mode, setMode] = useState<"crop" | "rotate">("crop")
+  const [aspectRatio, setAspectRatio] = useState<number | undefined>(undefined)
+  const [cropShape, setCropShape] = useState<"rect" | "round">("rect")
 
   const onCropComplete = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
     setCroppedAreaPixels(croppedAreaPixels)
@@ -155,7 +158,8 @@ export function ImageEditorDialog({ imageSrc, open, onOpenChange, onSave }: Imag
                 crop={crop}
                 zoom={zoom}
                 rotation={rotation}
-                aspect={1}
+                aspect={aspectRatio}
+                cropShape={cropShape}
                 onCropChange={setCrop}
                 onZoomChange={setZoom}
                 onRotationChange={setRotation}
@@ -189,16 +193,63 @@ export function ImageEditorDialog({ imageSrc, open, onOpenChange, onSave }: Imag
           {/* Controls */}
           <div className="p-4 border-t space-y-4">
             {mode === "crop" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">缩放</label>
-                <Slider
-                  value={[zoom]}
-                  min={1}
-                  max={3}
-                  step={0.1}
-                  onValueChange={(value) => setZoom(value[0])}
-                />
-              </div>
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">裁剪比例</label>
+                    <Select
+                      value={aspectRatio?.toString() || "free"}
+                      onValueChange={(value) => {
+                        if (value === "free") {
+                          setAspectRatio(undefined)
+                        } else {
+                          setAspectRatio(Number.parseFloat(value))
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择比例" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="free">自由裁剪</SelectItem>
+                        <SelectItem value="1">正方形 (1:1)</SelectItem>
+                        <SelectItem value="1.3333">横向 (4:3)</SelectItem>
+                        <SelectItem value="0.75">纵向 (3:4)</SelectItem>
+                        <SelectItem value="1.7778">宽屏 (16:9)</SelectItem>
+                        <SelectItem value="0.5625">竖屏 (9:16)</SelectItem>
+                        <SelectItem value="2.3333">超宽 (21:9)</SelectItem>
+                        <SelectItem value="1.5">照片 (3:2)</SelectItem>
+                        <SelectItem value="0.6667">照片 (2:3)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">裁剪形状</label>
+                    <Select
+                      value={cropShape}
+                      onValueChange={(value: "rect" | "round") => setCropShape(value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择形状" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="rect">矩形</SelectItem>
+                        <SelectItem value="round">圆形</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">缩放</label>
+                  <Slider
+                    value={[zoom]}
+                    min={1}
+                    max={3}
+                    step={0.1}
+                    onValueChange={(value) => setZoom(value[0])}
+                  />
+                </div>
+              </>
             )}
             <div className="flex items-center gap-4">
               <Button
