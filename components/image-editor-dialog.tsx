@@ -34,6 +34,7 @@ const getCroppedImg = async (
   pixelCrop: Area,
   rotation = 0,
   flip = { horizontal: false, vertical: false },
+  cropShape: "rect" | "round" = "rect",
 ): Promise<string> => {
   const image = await createImage(imageSrc)
   const canvas = document.createElement("canvas")
@@ -63,6 +64,44 @@ const getCroppedImg = async (
   canvas.height = pixelCrop.height
 
   ctx.putImageData(data, 0, 0)
+
+  // 如果是圆形裁剪，应用圆形遮罩
+  if (cropShape === "round") {
+    const roundedCanvas = document.createElement("canvas")
+    const roundedCtx = roundedCanvas.getContext("2d")
+    
+    if (!roundedCtx) {
+      throw new Error("No 2d context")
+    }
+
+    roundedCanvas.width = pixelCrop.width
+    roundedCanvas.height = pixelCrop.height
+
+    // 创建圆形路径
+    const centerX = pixelCrop.width / 2
+    const centerY = pixelCrop.height / 2
+    const radius = Math.min(pixelCrop.width, pixelCrop.height) / 2
+
+    roundedCtx.beginPath()
+    roundedCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
+    roundedCtx.closePath()
+    roundedCtx.clip()
+
+    // 在裁剪区域内绘制图片
+    roundedCtx.drawImage(canvas, 0, 0)
+
+    // 使用圆形裁剪的 canvas
+    return new Promise((resolve, reject) => {
+      roundedCanvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error("Canvas is empty"))
+          return
+        }
+        const url = URL.createObjectURL(blob)
+        resolve(url)
+      }, "image/png")
+    })
+  }
 
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
@@ -102,13 +141,13 @@ export function ImageEditorDialog({ imageSrc, open, onOpenChange, onSave }: Imag
     }
 
     try {
-      const croppedImageUrl = await getCroppedImg(imageSrc, croppedAreaPixels, rotation)
+      const croppedImageUrl = await getCroppedImg(imageSrc, croppedAreaPixels, rotation, { horizontal: false, vertical: false }, cropShape)
       onSave?.(croppedImageUrl)
       onOpenChange(false)
     } catch (error) {
       console.error("Failed to crop image:", error)
     }
-  }, [imageSrc, croppedAreaPixels, rotation, onSave, onOpenChange])
+  }, [imageSrc, croppedAreaPixels, rotation, cropShape, onSave, onOpenChange])
 
   const handleRotate = (degrees: number) => {
     setRotation((prev) => (prev + degrees) % 360)
