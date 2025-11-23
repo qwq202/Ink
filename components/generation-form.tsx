@@ -163,6 +163,13 @@ export function GenerationForm({
   >("1:1")
   const [falNanoBananaResolution, setFalNanoBananaResolution] = useState<"1K" | "2K" | "4K">("2K")
   const [falNanoBananaOutputFormat, setFalNanoBananaOutputFormat] = useState<"jpeg" | "png" | "webp">("png")
+  
+  // FAL gemini-3-pro-image-preview (Nano Banana 2) 专用状态
+  const [falGemini3ProAspectRatio, setFalGemini3ProAspectRatio] = useState<
+    "21:9" | "16:9" | "3:2" | "4:3" | "5:4" | "1:1" | "4:5" | "3:4" | "2:3" | "9:16"
+  >("1:1")
+  const [falGemini3ProResolution, setFalGemini3ProResolution] = useState<"1K" | "2K" | "4K">("2K")
+  const [falGemini3ProOutputFormat, setFalGemini3ProOutputFormat] = useState<"jpeg" | "png" | "webp">("png")
 
   // 根据外部传入的参数预填表单
   useEffect(() => {
@@ -408,6 +415,12 @@ export function GenerationForm({
   // 辅助函数：检查当前是否选中 nano-banana-pro（包括编辑模式）
   const isNanoBananaProSelected = useMemo(
     () => safeSelectedProvider === "fal" && (selectedFalModel === "fal-ai/nano-banana-pro" || selectedFalModel === "fal-ai/nano-banana-pro/edit"),
+    [safeSelectedProvider, selectedFalModel]
+  )
+  
+  // 辅助函数：检查当前是否选中 gemini-3-pro-image-preview (Nano Banana 2)
+  const isGemini3ProPreviewSelected = useMemo(
+    () => safeSelectedProvider === "fal" && selectedFalModel === "fal-ai/gemini-3-pro-image-preview",
     [safeSelectedProvider, selectedFalModel]
   )
   
@@ -867,6 +880,10 @@ export function GenerationForm({
         falNanoBananaAspectRatio: isNanoBananaProSelected ? falNanoBananaAspectRatio : undefined,
         falNanoBananaResolution: isNanoBananaProSelected ? falNanoBananaResolution : undefined,
         falNanoBananaOutputFormat: isNanoBananaProSelected ? falNanoBananaOutputFormat : undefined,
+        // FAL gemini-3-pro-image-preview (Nano Banana 2) 专用参数
+        falGemini3ProAspectRatio: isGemini3ProPreviewSelected ? falGemini3ProAspectRatio : undefined,
+        falGemini3ProResolution: isGemini3ProPreviewSelected ? falGemini3ProResolution : undefined,
+        falGemini3ProOutputFormat: isGemini3ProPreviewSelected ? falGemini3ProOutputFormat : undefined,
       },
     })
     
@@ -1093,6 +1110,10 @@ export function GenerationForm({
         falNanoBananaAspectRatio: isNanoBananaProSelected ? falNanoBananaAspectRatio : undefined,
         falNanoBananaResolution: isNanoBananaProSelected ? falNanoBananaResolution : undefined,
         falNanoBananaOutputFormat: isNanoBananaProSelected ? falNanoBananaOutputFormat : undefined,
+        // FAL gemini-3-pro-image-preview (Nano Banana 2) 专用参数
+        falGemini3ProAspectRatio: isGemini3ProPreviewSelected ? falGemini3ProAspectRatio : undefined,
+        falGemini3ProResolution: isGemini3ProPreviewSelected ? falGemini3ProResolution : undefined,
+        falGemini3ProOutputFormat: isGemini3ProPreviewSelected ? falGemini3ProOutputFormat : undefined,
       },
     })
 
@@ -1125,6 +1146,10 @@ export function GenerationForm({
       falNanoBananaAspectRatio: isNanoBananaProSelected ? falNanoBananaAspectRatio : undefined,
       falNanoBananaResolution: isNanoBananaProSelected ? falNanoBananaResolution : undefined,
       falNanoBananaOutputFormat: isNanoBananaProSelected ? falNanoBananaOutputFormat : undefined,
+      // FAL gemini-3-pro-image-preview (Nano Banana 2) 专用参数
+      falGemini3ProAspectRatio: isGemini3ProPreviewSelected ? falGemini3ProAspectRatio : undefined,
+      falGemini3ProResolution: isGemini3ProPreviewSelected ? falGemini3ProResolution : undefined,
+      falGemini3ProOutputFormat: isGemini3ProPreviewSelected ? falGemini3ProOutputFormat : undefined,
     })
   }
 
@@ -1688,6 +1713,81 @@ export function GenerationForm({
                 </div>
                 </>
               )}
+
+              {/* FAL gemini-3-pro-image-preview (Nano Banana 2) 特化设置 */}
+              {isGemini3ProPreviewSelected && (
+                <>
+                  <div className="sm:col-span-2 w-full">
+                    <div className="border-l-4 border-primary bg-primary/10 px-4 py-3 rounded">
+                      <p className="text-sm text-gray-900 font-medium">
+                        Gemini 3 Pro Image Preview (Nano Banana 2)
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Google 最新一代图片生成模型，具备更强的理解能力和更高的生成质量
+                      </p>
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2 grid gap-4 grid-cols-1 md:grid-cols-3 w-full">
+                    <div className="space-y-2">
+                    <Label htmlFor="fal-g3p-aspect" className="text-sm font-medium text-gray-900">
+                      宽高比
+                    </Label>
+                    <Select
+                      value={falGemini3ProAspectRatio}
+                      onValueChange={(v: any) => setFalGemini3ProAspectRatio(v)}
+                    >
+                      <SelectTrigger id="fal-g3p-aspect" className="w-full h-10">
+                        <SelectValue placeholder="选择宽高比" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["21:9","16:9","3:2","4:3","5:4","1:1","4:5","3:4","2:3","9:16"].map((r) => (
+                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fal-g3p-resolution" className="text-sm font-medium text-gray-900">
+                      分辨率
+                    </Label>
+                    <Select
+                      value={falGemini3ProResolution}
+                      onValueChange={(v: any) => setFalGemini3ProResolution(v)}
+                    >
+                      <SelectTrigger id="fal-g3p-resolution" className="w-full h-10">
+                        <SelectValue placeholder="选择分辨率" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="4K">4K - 最高质量（耗时较长）</SelectItem>
+                        <SelectItem value="2K">2K - 推荐平衡</SelectItem>
+                        <SelectItem value="1K">1K - 快速生成</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      提示：4K 分辨率需要较长时间，建议先尝试 2K
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fal-g3p-format" className="text-sm font-medium text-gray-900">
+                      输出格式
+                    </Label>
+                    <Select
+                      value={falGemini3ProOutputFormat}
+                      onValueChange={(v: any) => setFalGemini3ProOutputFormat(v)}
+                    >
+                      <SelectTrigger id="fal-g3p-format" className="w-full h-10">
+                        <SelectValue placeholder="选择格式" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="png">PNG - 无损压缩，质量最高</SelectItem>
+                        <SelectItem value="jpeg">JPEG - 有损压缩，文件较小</SelectItem>
+                        <SelectItem value="webp">WebP - 现代格式，平衡质量与大小</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                </>
+              )}
               
               {safeSelectedProvider === "newapi" ? (
                 <div className="space-y-2">
@@ -2104,7 +2204,7 @@ export function GenerationForm({
             </header>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              {!isNanoBananaProSelected && (
+              {!isNanoBananaProSelected && !isGemini3ProPreviewSelected && (
                 <div className="space-y-2">
                   <Label htmlFor="size" className="text-sm font-medium text-gray-900">
                     图片尺寸

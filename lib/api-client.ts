@@ -21,6 +21,10 @@ export interface GenerationParams {
   falNanoBananaAspectRatio?: "21:9" | "16:9" | "3:2" | "4:3" | "5:4" | "1:1" | "4:5" | "3:4" | "2:3" | "9:16"
   falNanoBananaResolution?: "1K" | "2K" | "4K"
   falNanoBananaOutputFormat?: "jpeg" | "png" | "webp"
+  // FAL gemini-3-pro-image-preview 专用参数（Nano Banana 2）
+  falGemini3ProAspectRatio?: "21:9" | "16:9" | "3:2" | "4:3" | "5:4" | "1:1" | "4:5" | "3:4" | "2:3" | "9:16"
+  falGemini3ProResolution?: "1K" | "2K" | "4K"
+  falGemini3ProOutputFormat?: "jpeg" | "png" | "webp"
 }
 
 export interface GenerationResult {
@@ -192,6 +196,22 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
       // 编辑模式下的特定参数调整
       delete payload.enable_safety_checker // 编辑模式不支持 safety checker
       delete payload.seed // 编辑模式不支持 seed
+    }
+  }
+
+  // gemini-3-pro-image-preview 专用参数（Nano Banana 2）
+  const isGemini3ProPreview = params.modelId === "fal-ai/gemini-3-pro-image-preview"
+  if (isGemini3ProPreview) {
+    // 使用专用参数覆盖默认值
+    if (params.falGemini3ProAspectRatio) {
+      payload.aspect_ratio = params.falGemini3ProAspectRatio
+      delete payload.image_size // gemini-3-pro-image-preview 使用 aspect_ratio 而不是 image_size
+    }
+    if (params.falGemini3ProResolution) {
+      payload.resolution = params.falGemini3ProResolution
+    }
+    if (params.falGemini3ProOutputFormat) {
+      payload.output_format = params.falGemini3ProOutputFormat
     }
   }
 
