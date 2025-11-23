@@ -418,9 +418,9 @@ export function GenerationForm({
     [safeSelectedProvider, selectedFalModel]
   )
   
-  // 辅助函数：检查当前是否选中 gemini-3-pro-image-preview (Nano Banana 2)
+  // 辅助函数：检查当前是否选中 gemini-3-pro-image-preview (Nano Banana 2，包括编辑模式)
   const isGemini3ProPreviewSelected = useMemo(
-    () => safeSelectedProvider === "fal" && selectedFalModel === "fal-ai/gemini-3-pro-image-preview",
+    () => safeSelectedProvider === "fal" && (selectedFalModel === "fal-ai/gemini-3-pro-image-preview" || selectedFalModel === "fal-ai/gemini-3-pro-image-preview/edit"),
     [safeSelectedProvider, selectedFalModel]
   )
   
@@ -1720,17 +1720,20 @@ export function GenerationForm({
                   <div className="sm:col-span-2 w-full">
                     <div className="border-l-4 border-primary bg-primary/10 px-4 py-3 rounded">
                       <p className="text-sm text-gray-900 font-medium">
-                        Gemini 3 Pro Image Preview (Nano Banana 2)
+                        Gemini 3 Pro Image Preview (Nano Banana 2) {mode === "img2img" && "· 编辑模式"}
                       </p>
                       <p className="text-xs text-gray-600 mt-1">
-                        Google 最新一代图片生成模型，具备更强的理解能力和更高的生成质量
+                        {mode === "img2img" 
+                          ? "强大的图片编辑模型，支持精准的图像修改和创意转换" 
+                          : "Google 最新一代图片生成模型，具备更强的理解能力和更高的生成质量"
+                        }
                       </p>
                     </div>
                   </div>
                   <div className="sm:col-span-2 grid gap-4 grid-cols-1 md:grid-cols-3 w-full">
                     <div className="space-y-2">
                     <Label htmlFor="fal-g3p-aspect" className="text-sm font-medium text-gray-900">
-                      宽高比
+                      {mode === "img2img" ? "输出宽高比" : "宽高比"}
                     </Label>
                     <Select
                       value={falGemini3ProAspectRatio}
@@ -1740,15 +1743,21 @@ export function GenerationForm({
                         <SelectValue placeholder="选择宽高比" />
                       </SelectTrigger>
                       <SelectContent>
+                        {mode === "img2img" && <SelectItem value="auto">自动 - 保持原图比例</SelectItem>}
                         {["21:9","16:9","3:2","4:3","5:4","1:1","4:5","3:4","2:3","9:16"].map((r) => (
                           <SelectItem key={r} value={r}>{r}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {mode === "img2img" && (
+                      <p className="text-xs text-gray-500">
+                        选择 auto 保持原图比例，或指定新的宽高比
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="fal-g3p-resolution" className="text-sm font-medium text-gray-900">
-                      分辨率
+                      {mode === "img2img" ? "输出分辨率" : "分辨率"}
                     </Label>
                     <Select
                       value={falGemini3ProResolution}
@@ -1760,7 +1769,7 @@ export function GenerationForm({
                       <SelectContent>
                         <SelectItem value="4K">4K - 最高质量（耗时较长）</SelectItem>
                         <SelectItem value="2K">2K - 推荐平衡</SelectItem>
-                        <SelectItem value="1K">1K - 快速生成</SelectItem>
+                        <SelectItem value="1K">1K - 快速{mode === "img2img" ? "编辑" : "生成"}</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-gray-500">

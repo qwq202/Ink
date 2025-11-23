@@ -56,6 +56,11 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
     if (fallbackModelId === "fal-ai/nano-banana-pro" && isImg2ImgMode) {
       fallbackModelId = "fal-ai/nano-banana-pro/edit"
     }
+    
+    // 如果是 gemini-3-pro-image-preview 且处于图生图模式，自动使用编辑端点
+    if (fallbackModelId === "fal-ai/gemini-3-pro-image-preview" && isImg2ImgMode) {
+      fallbackModelId = "fal-ai/gemini-3-pro-image-preview/edit"
+    }
 
     if (provider.endpoint) {
       try {
@@ -199,8 +204,8 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
     }
   }
 
-  // gemini-3-pro-image-preview 专用参数（Nano Banana 2）
-  const isGemini3ProPreview = params.modelId === "fal-ai/gemini-3-pro-image-preview"
+  // gemini-3-pro-image-preview 专用参数（Nano Banana 2，包括 /edit 编辑模式）
+  const isGemini3ProPreview = params.modelId === "fal-ai/gemini-3-pro-image-preview" || params.modelId === "fal-ai/gemini-3-pro-image-preview/edit"
   if (isGemini3ProPreview) {
     // 使用专用参数覆盖默认值
     if (params.falGemini3ProAspectRatio) {
@@ -212,6 +217,11 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
     }
     if (params.falGemini3ProOutputFormat) {
       payload.output_format = params.falGemini3ProOutputFormat
+    }
+    
+    // 图生图模式下，gemini-3-pro-image-preview/edit 需要使用 image_urls 而不是 image_url
+    if (isImg2ImgMode && payload.image_urls) {
+      delete payload.image_url // 删除单图参数，只保留 image_urls
     }
   }
 
