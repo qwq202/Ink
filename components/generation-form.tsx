@@ -1266,19 +1266,19 @@ export function GenerationForm({
                 )}
               </DialogContent>
             </Dialog>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 rounded-none border-border hover:bg-primary/20 hover:text-primary font-mono text-xs"
-              onClick={() => {
-                resetForm()
-                onReset?.()
-              }}
-            >
-              <RotateCcw className="h-3 w-3" />
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 rounded-none border-border hover:bg-primary/20 hover:text-primary font-mono text-xs"
+            onClick={() => {
+              resetForm()
+              onReset?.()
+            }}
+          >
+            <RotateCcw className="h-3 w-3" />
               重置表单
-            </Button>
+          </Button>
           </div>
           </header>
           
@@ -1604,17 +1604,20 @@ export function GenerationForm({
                   <div className="sm:col-span-2 w-full">
                     <div className="border-l-4 border-primary bg-primary/10 px-4 py-3 rounded">
                       <p className="text-sm text-gray-900 font-medium">
-                        Nano Banana Pro (Gemini 3 Pro Image)
+                        Nano Banana Pro (Gemini 3 Pro Image) {mode === "img2img" && "· 编辑模式"}
                       </p>
                       <p className="text-xs text-gray-600 mt-1">
-                        Google 最新的图片生成模型，支持自定义宽高比、分辨率和输出格式
+                        {mode === "img2img" 
+                          ? "专业的图片编辑模型，支持基于原图进行精准修改和风格转换" 
+                          : "Google 最新的图片生成模型，支持自定义宽高比、分辨率和输出格式"
+                        }
                       </p>
                     </div>
                   </div>
                   <div className="sm:col-span-2 grid gap-4 grid-cols-1 md:grid-cols-3 w-full">
                     <div className="space-y-2">
                     <Label htmlFor="fal-nano-aspect" className="text-sm font-medium text-gray-900">
-                      宽高比
+                      {mode === "img2img" ? "输出宽高比" : "宽高比"}
                     </Label>
                     <Select
                       value={falNanoBananaAspectRatio}
@@ -1624,15 +1627,21 @@ export function GenerationForm({
                         <SelectValue placeholder="选择宽高比" />
                       </SelectTrigger>
                       <SelectContent>
+                        {mode === "img2img" && <SelectItem value="auto">自动 - 保持原图比例</SelectItem>}
                         {["21:9","16:9","3:2","4:3","5:4","1:1","4:5","3:4","2:3","9:16"].map((r) => (
                           <SelectItem key={r} value={r}>{r}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {mode === "img2img" && (
+                      <p className="text-xs text-gray-500">
+                        选择 auto 保持原图比例，或指定新的宽高比
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="fal-nano-resolution" className="text-sm font-medium text-gray-900">
-                      分辨率
+                      {mode === "img2img" ? "输出分辨率" : "分辨率"}
                     </Label>
                     <Select
                       value={falNanoBananaResolution}
@@ -1644,7 +1653,7 @@ export function GenerationForm({
                       <SelectContent>
                         <SelectItem value="4K">4K - 最高质量（耗时较长）</SelectItem>
                         <SelectItem value="2K">2K - 推荐平衡</SelectItem>
-                        <SelectItem value="1K">1K - 快速生成</SelectItem>
+                        <SelectItem value="1K">1K - 快速{mode === "img2img" ? "编辑" : "生成"}</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-gray-500">
