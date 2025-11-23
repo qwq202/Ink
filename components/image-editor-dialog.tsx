@@ -278,16 +278,16 @@ export function ImageEditorDialog({ imageSrc, open, onOpenChange, onSave }: Imag
                     </Select>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">缩放</label>
-                  <Slider
-                    value={[zoom]}
-                    min={1}
-                    max={3}
-                    step={0.1}
-                    onValueChange={(value) => setZoom(value[0])}
-                  />
-                </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">缩放</label>
+                <Slider
+                  value={[zoom]}
+                  min={1}
+                  max={3}
+                  step={0.1}
+                  onValueChange={(value) => setZoom(value[0])}
+                />
+              </div>
               </>
             )}
             <div className="flex items-center gap-4">
