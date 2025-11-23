@@ -1361,7 +1361,10 @@ export function GenerationForm({
                       const res = await fetch("/api/prompt/enhance", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ prompt }),
+                        body: JSON.stringify({ 
+                          prompt,
+                          mode, // 传递当前模式
+                        }),
                       })
                       const data = await res.json()
                       if (!res.ok || !data.enhanced) {
@@ -1370,7 +1373,9 @@ export function GenerationForm({
                       setPrompt(data.enhanced)
                       toast({
                         title: "已优化提示词",
-                        description: "可继续调整后再生成",
+                        description: mode === "img2img" 
+                          ? "已针对图片编辑优化提示词" 
+                          : "已针对全新生成优化提示词",
                       })
                     } catch (error) {
                       toast({
