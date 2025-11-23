@@ -285,25 +285,130 @@ export function ImageEditorDialog({ imageSrc, open, onOpenChange, onSave }: Imag
           {/* Editor Area */}
           <div className="flex-1 relative bg-gray-900">
             {mode === "crop" ? (
-              <Cropper
-                image={imageSrc}
-                crop={crop}
-                zoom={zoom}
-                rotation={rotation}
-                aspect={aspectRatio}
-                cropShape={displayCropShape}
-                onCropChange={setCrop}
-                onZoomChange={setZoom}
-                onRotationChange={setRotation}
-                onCropComplete={onCropComplete}
-                style={{
-                  containerStyle: {
-                    width: "100%",
-                    height: "100%",
-                    position: "relative",
-                  },
-                }}
-              />
+              <div className="relative w-full h-full">
+                <Cropper
+                  image={imageSrc}
+                  crop={crop}
+                  zoom={zoom}
+                  rotation={rotation}
+                  aspect={aspectRatio}
+                  cropShape={displayCropShape}
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onRotationChange={setRotation}
+                  onCropComplete={onCropComplete}
+                  style={{
+                    containerStyle: {
+                      width: "100%",
+                      height: "100%",
+                      position: "relative",
+                    },
+                    cropAreaStyle: {
+                      border: cropShape === "rect" || cropShape === "round" ? undefined : "none",
+                    },
+                  }}
+                />
+                {/* 自定义形状预览覆盖层 */}
+                {cropShape !== "rect" && cropShape !== "round" && croppedAreaPixels && (
+                  <svg
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                    }}
+                  >
+                    <defs>
+                      <mask id="crop-mask">
+                        <rect width="100%" height="100%" fill="white" />
+                        {(() => {
+                          const containerWidth = croppedAreaPixels.width
+                          const containerHeight = croppedAreaPixels.height
+                          const centerX = croppedAreaPixels.x + containerWidth / 2
+                          const centerY = croppedAreaPixels.y + containerHeight / 2
+
+                          switch (cropShape) {
+                            case "star":
+                              const points: string[] = []
+                              const spikes = 5
+                              const outerRadius = Math.min(containerWidth, containerHeight) / 2
+                              const innerRadius = outerRadius * 0.5
+                              let rot = (Math.PI / 2) * 3
+                              const step = Math.PI / spikes
+                              
+                              for (let i = 0; i < spikes; i++) {
+                                let x = centerX + Math.cos(rot) * outerRadius
+                                let y = centerY + Math.sin(rot) * outerRadius
+                                points.push(`${x},${y}`)
+                                rot += step
+                                x = centerX + Math.cos(rot) * innerRadius
+                                y = centerY + Math.sin(rot) * innerRadius
+                                points.push(`${x},${y}`)
+                                rot += step
+                              }
+                              return <polygon points={points.join(" ")} fill="black" />
+
+                            case "heart":
+                              const heartPath = `
+                                M ${centerX} ${centerY + containerHeight * 0.3}
+                                C ${centerX} ${centerY - containerHeight * 0.1},
+                                  ${centerX - containerWidth * 0.5} ${centerY - containerHeight * 0.1},
+                                  ${centerX - containerWidth * 0.5} ${centerY + containerHeight * 0.05}
+                                C ${centerX - containerWidth * 0.5} ${centerY + containerHeight * 0.3},
+                                  ${centerX} ${centerY + containerHeight * 0.5},
+                                  ${centerX} ${centerY + containerHeight * 0.5}
+                                C ${centerX} ${centerY + containerHeight * 0.5},
+                                  ${centerX + containerWidth * 0.5} ${centerY + containerHeight * 0.3},
+                                  ${centerX + containerWidth * 0.5} ${centerY + containerHeight * 0.05}
+                                C ${centerX + containerWidth * 0.5} ${centerY - containerHeight * 0.1},
+                                  ${centerX} ${centerY - containerHeight * 0.1},
+                                  ${centerX} ${centerY + containerHeight * 0.3}
+                                Z
+                              `
+                              return <path d={heartPath} fill="black" />
+
+                            case "hexagon":
+                              const hexPoints: string[] = []
+                              const hexRadius = Math.min(containerWidth, containerHeight) / 2
+                              for (let i = 0; i < 6; i++) {
+                                const angle = (Math.PI / 3) * i
+                                const x = centerX + hexRadius * Math.cos(angle)
+                                const y = centerY + hexRadius * Math.sin(angle)
+                                hexPoints.push(`${x},${y}`)
+                              }
+                              return <polygon points={hexPoints.join(" ")} fill="black" />
+
+                            case "triangle":
+                              return (
+                                <polygon
+                                  points={`
+                                    ${centerX},${centerY - containerHeight / 2}
+                                    ${centerX - containerWidth / 2},${centerY + containerHeight / 2}
+                                    ${centerX + containerWidth / 2},${centerY + containerHeight / 2}
+                                  `}
+                                  fill="black"
+                                />
+                              )
+
+                            case "diamond":
+                              return (
+                                <polygon
+                                  points={`
+                                    ${centerX},${centerY - containerHeight / 2}
+                                    ${centerX + containerWidth / 2},${centerY}
+                                    ${centerX},${centerY + containerHeight / 2}
+                                    ${centerX - containerWidth / 2},${centerY}
+                                  `}
+                                  fill="black"
+                                />
+                              )
+                          }
+                        })()}
+                      </mask>
+                    </defs>
+                    <rect width="100%" height="100%" fill="rgba(0,0,0,0.5)" mask="url(#crop-mask)" />
+                  </svg>
+                )}
+              </div>
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <div className="relative max-w-full max-h-full">
