@@ -171,8 +171,8 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
     payload.openai_api_key = params.openaiApiKey
   }
 
-  // nano-banana-pro 专用参数
-  const isNanoBananaPro = params.modelId === "fal-ai/nano-banana-pro"
+  // nano-banana-pro 专用参数（包括 /edit 编辑模式）
+  const isNanoBananaPro = params.modelId === "fal-ai/nano-banana-pro" || params.modelId === "fal-ai/nano-banana-pro/edit"
   if (isNanoBananaPro) {
     // 使用专用参数覆盖默认值
     if (params.falNanoBananaAspectRatio) {

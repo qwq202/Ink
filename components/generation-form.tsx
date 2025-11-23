@@ -404,6 +404,13 @@ export function GenerationForm({
     () => deferredFalModels.find((model) => model.id === selectedFalModel),
     [deferredFalModels, selectedFalModel],
   )
+  
+  // 辅助函数：检查当前是否选中 nano-banana-pro（包括编辑模式）
+  const isNanoBananaProSelected = useMemo(
+    () => safeSelectedProvider === "fal" && (selectedFalModel === "fal-ai/nano-banana-pro" || selectedFalModel === "fal-ai/nano-banana-pro/edit"),
+    [safeSelectedProvider, selectedFalModel]
+  )
+  
   const falModelButtonLabel =
     selectedFalModelOption?.title ??
     selectedFalModel ??
@@ -857,12 +864,9 @@ export function GenerationForm({
           (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
           provider.id === "gemini"
         ) ? geminiAspectRatio : undefined,
-        falNanoBananaAspectRatio: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
-          ? falNanoBananaAspectRatio : undefined,
-        falNanoBananaResolution: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
-          ? falNanoBananaResolution : undefined,
-        falNanoBananaOutputFormat: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
-          ? falNanoBananaOutputFormat : undefined,
+        falNanoBananaAspectRatio: isNanoBananaProSelected ? falNanoBananaAspectRatio : undefined,
+        falNanoBananaResolution: isNanoBananaProSelected ? falNanoBananaResolution : undefined,
+        falNanoBananaOutputFormat: isNanoBananaProSelected ? falNanoBananaOutputFormat : undefined,
       },
     })
     
@@ -1086,12 +1090,9 @@ export function GenerationForm({
           (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
           provider.id === "gemini"
         ) ? geminiAspectRatio : undefined,
-        falNanoBananaAspectRatio: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
-          ? falNanoBananaAspectRatio : undefined,
-        falNanoBananaResolution: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
-          ? falNanoBananaResolution : undefined,
-        falNanoBananaOutputFormat: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
-          ? falNanoBananaOutputFormat : undefined,
+        falNanoBananaAspectRatio: isNanoBananaProSelected ? falNanoBananaAspectRatio : undefined,
+        falNanoBananaResolution: isNanoBananaProSelected ? falNanoBananaResolution : undefined,
+        falNanoBananaOutputFormat: isNanoBananaProSelected ? falNanoBananaOutputFormat : undefined,
       },
     })
 
@@ -1121,12 +1122,9 @@ export function GenerationForm({
         provider.id === "gemini"
       ) ? geminiAspectRatio : undefined,
       // FAL nano-banana-pro 专用参数
-      falNanoBananaAspectRatio: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
-        ? falNanoBananaAspectRatio : undefined,
-      falNanoBananaResolution: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
-        ? falNanoBananaResolution : undefined,
-      falNanoBananaOutputFormat: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
-        ? falNanoBananaOutputFormat : undefined,
+      falNanoBananaAspectRatio: isNanoBananaProSelected ? falNanoBananaAspectRatio : undefined,
+      falNanoBananaResolution: isNanoBananaProSelected ? falNanoBananaResolution : undefined,
+      falNanoBananaOutputFormat: isNanoBananaProSelected ? falNanoBananaOutputFormat : undefined,
     })
   }
 
@@ -1599,7 +1597,7 @@ export function GenerationForm({
                 </div>
               ) : null}
 
-              {safeSelectedProvider === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" && (
+              {isNanoBananaProSelected && (
                 <>
                   <div className="sm:col-span-2 w-full">
                     <div className="border-l-4 border-primary bg-primary/10 px-4 py-3 rounded">
@@ -2097,7 +2095,7 @@ export function GenerationForm({
             </header>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              {!(safeSelectedProvider === "fal" && selectedFalModel === "fal-ai/nano-banana-pro") && (
+              {!isNanoBananaProSelected && (
                 <div className="space-y-2">
                   <Label htmlFor="size" className="text-sm font-medium text-gray-900">
                     图片尺寸
