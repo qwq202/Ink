@@ -1085,7 +1085,7 @@ export function GenerationForm({
               title="保存当前参数配置"
             >
               <Download className="h-3 w-3" />
-              SAVE_PARAMS
+              保存参数
             </Button>
             
             <Dialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen}>
@@ -1096,7 +1096,7 @@ export function GenerationForm({
                   className="gap-2 rounded-none border-border hover:bg-primary/20 hover:text-primary font-mono text-xs"
                 >
                   <Clock className="h-3 w-3" />
-                  HISTORY ({history.length})
+                  历史记录 ({history.length})
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-3xl max-h-[80vh]">
@@ -1212,7 +1212,7 @@ export function GenerationForm({
               }}
             >
               <RotateCcw className="h-3 w-3" />
-              RESET_SYSTEM
+              重置表单
             </Button>
           </div>
           </header>
