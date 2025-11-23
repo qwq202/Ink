@@ -1408,6 +1408,15 @@ export function GenerationForm({
               onChange={(e) => setPrompt(e.target.value)}
               maxLength={1000}
             />
+            {mode === "img2img" && images.length > 1 && (
+              <div className="mt-2 flex items-start gap-2 text-xs text-muted-foreground bg-primary/5 p-2 rounded border border-primary/20">
+                <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+                <p>
+                  提示：已上传 {images.length} 张图片，可在提示词中使用 <span className="font-mono text-primary font-semibold">#1</span>、<span className="font-mono text-primary font-semibold">#2</span> 等编号引用特定图片。
+                  例如："<span className="italic">将 #1 的风格应用到 #2 上</span>"
+                </p>
+              </div>
+            )}
           </div>
 
           <section className="bg-card/50 p-4 border border-border backdrop-blur-sm">

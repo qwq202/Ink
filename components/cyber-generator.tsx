@@ -871,12 +871,16 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
               {/* Preview Thumbnails */}
               {upload.images.length > 0 && (
                   <div className="grid grid-cols-4 gap-2 mt-4">
-                      {upload.images.map((img) => (
-                          <div key={img.id} className="relative aspect-square border border-border bg-white">
-                              <Image src={img.preview} alt="" fill className="object-cover opacity-70 hover:opacity-100 transition-opacity" />
+                      {upload.images.map((img, index) => (
+                          <div key={img.id} className="relative aspect-square border border-border bg-white group">
+                              <Image src={img.preview} alt="" fill className="object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
+                              {/* 图片编号标识 */}
+                              <div className="absolute top-0 left-0 bg-primary text-primary-foreground font-mono text-xs font-bold px-1.5 py-0.5 shadow-md">
+                                #{index + 1}
+                              </div>
                               <button 
                                   onClick={(e) => { e.stopPropagation(); upload.removeImage(img.id) }}
-                                  className="absolute top-0 right-0 bg-destructive text-white p-0.5"
+                                  className="absolute top-0 right-0 bg-destructive text-white p-0.5 hover:bg-destructive/90 transition-colors"
                               >
                                   <X className="h-3 w-3" />
                               </button>
