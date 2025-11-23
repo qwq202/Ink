@@ -17,14 +17,25 @@ import {
   Sparkles,
   Wand2,
   Zap,
+  Loader2,
+  Clock,
+  Trash2,
+  Edit2,
+  Download,
 } from "lucide-react"
 import { useProviderSettings } from "@/hooks/use-provider-settings"
 import { useToast } from "@/hooks/use-toast"
+import { useGenerationHistory, type GenerationHistoryItem } from "@/hooks/use-generation-history"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import type { ProviderConfig } from "@/lib/providers"
 import type { GenerationParams, GenerationResult } from "@/lib/api-client"
 import { useFalModels, prefetchFalModels } from "@/hooks/use-fal-models"
 import { useNewApiModels } from "@/hooks/use-newapi-models"
 import { useOpenRouterModels } from "@/hooks/use-openrouter-models"
+import { useGeminiModels } from "@/hooks/use-gemini-models"
 import { cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
@@ -38,6 +49,8 @@ interface GenerationFormProps {
   onGenerate: (provider: ProviderConfig, params: GenerationParams) => Promise<GenerationResult>
   initialPrompt?: string
   onPromptSet?: () => void
+  initialParams?: Partial<GenerationParams>
+  onOpenSettings?: (tab?: string) => void
 }
 
 export function GenerationForm({
@@ -49,6 +62,8 @@ export function GenerationForm({
   resetSignal,
   initialPrompt,
   onPromptSet,
+  initialParams,
+  onOpenSettings,
 }: GenerationFormProps) {
   // 注意：为避免服务端/客户端初始 HTML 不一致导致的 Hydration 报错
   // 这里不在初始 state 读取 localStorage，而是统一在后续 effect 中恢复
@@ -58,6 +73,7 @@ export function GenerationForm({
   const [imageSizeSelection, setImageSizeSelection] = useState("square")
   const [numImages, setNumImages] = useState(1)
   const [seed, setSeed] = useState<number | undefined>()
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [safetyChecker, setSafetyChecker] = useState(true)
   const [syncMode, setSyncMode] = useState(true)
   const [selectedFalModel, setSelectedFalModel] = useState<string>("fal-ai/flux/dev")
@@ -89,6 +105,13 @@ export function GenerationForm({
   )
   const [customApplyState, setCustomApplyState] = useState<"idle" | "success" | "error">("idle")
   const [customSizeAppliedAt, setCustomSizeAppliedAt] = useState<string | null>(null)
+  const [isEnhancing, setIsEnhancing] = useState(false)
+  
+  // 历史记录状态
+  const { history, addHistoryItem, deleteHistoryItem, clearHistory } = useGenerationHistory()
+  const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false)
+  const [historyToDelete, setHistoryToDelete] = useState<string | null>(null)
+  const [showClearHistoryConfirm, setShowClearHistoryConfirm] = useState(false)
 
 
 
@@ -117,6 +140,64 @@ export function GenerationForm({
   const [openrouterSearch, setOpenrouterSearch] = useState("")
   const openrouterListRef = useRef<HTMLDivElement>(null)
   const openrouterPrevSearchRef = useRef("")
+  // Gemini 供应商状态
+  const [selectedGeminiModel, setSelectedGeminiModel] = useState<string>("gemini-2.5-flash-image")
+  const { models: geminiModels, isLoading: isLoadingGeminiModels } = useGeminiModels()
+  
+  // Gemini 专用参数（用于 NewAPI 的 Gemini 模型）
+  const [geminiThinkingLevel, setGeminiThinkingLevel] = useState<"low" | "high">("high")
+  const [geminiMediaResolution, setGeminiMediaResolution] = useState<
+    "media_resolution_low" | "media_resolution_medium" | "media_resolution_high"
+  >("media_resolution_medium")
+  const [geminiAspectRatio, setGeminiAspectRatio] = useState<
+    "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "4:5" | "5:4" | "9:16" | "16:9" | "21:9"
+  >("1:1")
+
+  // FAL nano-banana-pro 专用参数
+  const [falNanoBananaAspectRatio, setFalNanoBananaAspectRatio] = useState<
+    "21:9" | "16:9" | "3:2" | "4:3" | "5:4" | "1:1" | "4:5" | "3:4" | "2:3" | "9:16"
+  >("1:1")
+  const [falNanoBananaResolution, setFalNanoBananaResolution] = useState<"1K" | "2K" | "4K">("2K")
+  const [falNanoBananaOutputFormat, setFalNanoBananaOutputFormat] = useState<"jpeg" | "png" | "webp">("png")
+
+  // 根据外部传入的参数预填表单
+  useEffect(() => {
+    if (!initialParams) return
+    if (initialParams.prompt !== undefined) {
+      setPrompt(initialParams.prompt)
+      onPromptSet?.()
+    }
+    const providerFromParams = (initialParams as any).providerId as string | undefined
+    if (providerFromParams) {
+      setSelectedProvider(providerFromParams)
+    }
+    if (initialParams.imageSize) {
+      const size = initialParams.imageSize.toLowerCase()
+      if (/^\d+\s*x\s*\d+$/.test(size)) {
+        const [w, h] = size.split("x").map((v) => v.trim())
+        setCustomWidth(w)
+        setCustomHeight(h)
+        setImageSizeSelection("custom")
+        setCustomSizeApplied(`${w}x${h}`)
+      } else {
+        setImageSizeSelection(size)
+      }
+    }
+    if (initialParams.numImages !== undefined) setNumImages(initialParams.numImages)
+    if (initialParams.seed !== undefined) setSeed(initialParams.seed)
+    if (initialParams.safetyChecker !== undefined) setSafetyChecker(initialParams.safetyChecker)
+    if (initialParams.syncMode !== undefined) setSyncMode(initialParams.syncMode)
+    if (initialParams.quality) setNewapiQuality(initialParams.quality as any)
+    if (initialParams.style) setNewapiStyle(initialParams.style as any)
+    if (initialParams.thinkingLevel) setGeminiThinkingLevel(initialParams.thinkingLevel)
+    if (initialParams.mediaResolution) setGeminiMediaResolution(initialParams.mediaResolution)
+    if (initialParams.aspectRatio) setGeminiAspectRatio(initialParams.aspectRatio as any)
+    if (initialParams.modelId) {
+      setSelectedFalModel(initialParams.modelId)
+      setSelectedNewapiModel(initialParams.modelId)
+      setSelectedOpenRouterModel(initialParams.modelId)
+    }
+  }, [initialParams, onPromptSet])
 
   const { getEnabledProviders: getEnabledProviderSettings, getProvider, settings } = useProviderSettings()
   const { toast } = useToast()
@@ -576,6 +657,9 @@ export function GenerationForm({
       setSeed(undefined)
       setSafetyChecker(true)
       setSyncMode(true)
+      setGeminiThinkingLevel("high")
+      setGeminiMediaResolution("media_resolution_high")
+      setGeminiAspectRatio("1:1")
       falModelByCategoryRef.current = {
         "text-to-image": "fal-ai/flux/dev",
         "image-to-image": "fal-ai/flux/dev",
@@ -597,6 +681,9 @@ export function GenerationForm({
     setSeed(undefined)
     setSafetyChecker(true)
     setSyncMode(true)
+    setGeminiThinkingLevel("high")
+    setGeminiMediaResolution("media_resolution_high")
+    setGeminiAspectRatio("1:1")
     const normalized = normalizeFalModelFromEndpoint()
     falModelByCategoryRef.current = {
       "text-to-image": normalized,
@@ -690,6 +777,151 @@ export function GenerationForm({
     return () => cancelAnimationFrame(frame)
   }, [openrouterModels])
 
+  // 手动保存当前参数
+  const saveCurrentParams = useCallback(() => {
+    if (!prompt.trim()) {
+      toast({
+        title: "无法保存",
+        description: "提示词不能为空",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    const enabledProviders = getEnabledProviderSettings()
+    const provider = enabledProviders.find((p) => p.id === safeSelectedProvider)
+    
+    if (!provider) {
+      toast({
+        title: "无法保存",
+        description: "请先选择一个供应商",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    const modelId = provider.id === "fal"
+      ? selectedFalModel
+      : provider.id === "newapi"
+      ? selectedNewapiModel
+      : provider.id === "openrouter"
+      ? selectedOpenRouterModel
+      : provider.id === "gemini"
+      ? selectedGeminiModel
+      : undefined
+    
+    addHistoryItem({
+      prompt,
+      providerId: provider.id,
+      modelId,
+      params: {
+        imageSize: effectiveImageSize,
+        numImages: safeNumImages,
+        seed,
+        safetyChecker,
+        syncMode,
+        quality: provider.id === "newapi" ? safeNewapiQuality : undefined,
+        style: provider.id === "newapi" ? newapiStyle : undefined,
+        thinkingLevel: (
+          (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+          (provider.id === "gemini" && selectedGeminiModel.includes("pro"))
+        ) ? geminiThinkingLevel : undefined,
+        mediaResolution: (
+          (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+          provider.id === "gemini"
+        ) ? geminiMediaResolution : undefined,
+        aspectRatio: (
+          (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+          provider.id === "gemini"
+        ) ? geminiAspectRatio : undefined,
+        falNanoBananaAspectRatio: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
+          ? falNanoBananaAspectRatio : undefined,
+        falNanoBananaResolution: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
+          ? falNanoBananaResolution : undefined,
+        falNanoBananaOutputFormat: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
+          ? falNanoBananaOutputFormat : undefined,
+      },
+    })
+    
+    toast({
+      title: "已保存参数",
+      description: "当前配置已保存到历史记录",
+    })
+  }, [
+    prompt, 
+    safeSelectedProvider, 
+    selectedFalModel,
+    selectedNewapiModel,
+    selectedOpenRouterModel,
+    selectedGeminiModel,
+    effectiveImageSize,
+    safeNumImages,
+    seed,
+    safetyChecker,
+    syncMode,
+    safeNewapiQuality,
+    newapiStyle,
+    geminiThinkingLevel,
+    geminiMediaResolution,
+    geminiAspectRatio,
+    falNanoBananaAspectRatio,
+    falNanoBananaResolution,
+    falNanoBananaOutputFormat,
+    toast,
+    getEnabledProviderSettings,
+    addHistoryItem,
+  ])
+
+  // 加载历史记录参数
+  const loadHistoryParams = useCallback((historyItem: GenerationHistoryItem) => {
+    setPrompt(historyItem.prompt)
+    setSelectedProvider(historyItem.providerId)
+    
+    if (historyItem.modelId) {
+      if (historyItem.providerId === "fal") {
+        updateFalModel(historyItem.modelId)
+      } else if (historyItem.providerId === "newapi") {
+        setSelectedNewapiModel(historyItem.modelId)
+      } else if (historyItem.providerId === "openrouter") {
+        setSelectedOpenRouterModel(historyItem.modelId)
+      } else if (historyItem.providerId === "gemini") {
+        setSelectedGeminiModel(historyItem.modelId)
+      }
+    }
+    
+    const params = historyItem.params
+    if (params.imageSize) {
+      const size = params.imageSize.toLowerCase()
+      if (/^\d+\s*x\s*\d+$/.test(size)) {
+        const [w, h] = size.split("x").map((v) => v.trim())
+        setCustomWidth(w)
+        setCustomHeight(h)
+        setImageSizeSelection("custom")
+        setCustomSizeApplied(`${w}x${h}`)
+      } else {
+        setImageSizeSelection(size)
+      }
+    }
+    if (params.numImages !== undefined) setNumImages(params.numImages)
+    if (params.seed !== undefined) setSeed(params.seed)
+    if (params.safetyChecker !== undefined) setSafetyChecker(params.safetyChecker)
+    if (params.syncMode !== undefined) setSyncMode(params.syncMode)
+    if (params.quality) setNewapiQuality(params.quality as any)
+    if (params.style) setNewapiStyle(params.style as any)
+    if (params.thinkingLevel) setGeminiThinkingLevel(params.thinkingLevel)
+    if (params.mediaResolution) setGeminiMediaResolution(params.mediaResolution)
+    if (params.aspectRatio) setGeminiAspectRatio(params.aspectRatio as any)
+    if (params.falNanoBananaAspectRatio) setFalNanoBananaAspectRatio(params.falNanoBananaAspectRatio)
+    if (params.falNanoBananaResolution) setFalNanoBananaResolution(params.falNanoBananaResolution)
+    if (params.falNanoBananaOutputFormat) setFalNanoBananaOutputFormat(params.falNanoBananaOutputFormat)
+    
+    setIsHistoryDialogOpen(false)
+    toast({
+      title: "已加载历史参数",
+      description: historyItem.label || `参数于 ${new Date(historyItem.timestamp).toLocaleString("zh-CN")} 保存`,
+    })
+  }, [toast, updateFalModel])
+
   const handleGenerate = async () => {
     const isImg2ImgMode = mode === "img2img"
     const hasImages = images.length > 0
@@ -714,6 +946,7 @@ export function GenerationForm({
         description: "请先在设置中配置并启用 AI 供应商",
         variant: "destructive",
       })
+      onOpenSettings?.()
       return
     }
 
@@ -732,6 +965,7 @@ export function GenerationForm({
         description: "请先选择一个 FAL 模型用于生成图片",
         variant: "destructive",
       })
+      onOpenSettings?.("fal")
       return
     }
 
@@ -741,6 +975,8 @@ export function GenerationForm({
       ? selectedNewapiModel
       : provider.id === "openrouter"
       ? selectedOpenRouterModel
+      : provider.id === "gemini"
+      ? selectedGeminiModel
       : undefined
 
     let openaiApiKey: string | undefined
@@ -755,9 +991,44 @@ export function GenerationForm({
           description: "该 FAL 模型需要配置 OpenAI API Key 才能使用，请在供应商设置中填写后重试。",
           variant: "destructive",
         })
+        onOpenSettings?.("openai")
         return
       }
     }
+    
+    // 保存当前参数到历史记录
+    addHistoryItem({
+      prompt,
+      providerId: provider.id,
+      modelId,
+      params: {
+        imageSize: effectiveImageSize,
+        numImages: safeNumImages,
+        seed,
+        safetyChecker,
+        syncMode,
+        quality: provider.id === "newapi" ? safeNewapiQuality : undefined,
+        style: provider.id === "newapi" ? newapiStyle : undefined,
+        thinkingLevel: (
+          (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+          (provider.id === "gemini" && selectedGeminiModel.includes("pro"))
+        ) ? geminiThinkingLevel : undefined,
+        mediaResolution: (
+          (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+          provider.id === "gemini"
+        ) ? geminiMediaResolution : undefined,
+        aspectRatio: (
+          (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+          provider.id === "gemini"
+        ) ? geminiAspectRatio : undefined,
+        falNanoBananaAspectRatio: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
+          ? falNanoBananaAspectRatio : undefined,
+        falNanoBananaResolution: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
+          ? falNanoBananaResolution : undefined,
+        falNanoBananaOutputFormat: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
+          ? falNanoBananaOutputFormat : undefined,
+      },
+    })
 
     await onGenerate(provider, {
       prompt,
@@ -771,6 +1042,26 @@ export function GenerationForm({
       quality: provider.id === "newapi" ? safeNewapiQuality : undefined,
       style: provider.id === "newapi" ? newapiStyle : undefined,
       openaiApiKey,
+      // Gemini 参数（NewAPI 的 Gemini 模型或 Gemini 供应商）
+      thinkingLevel: (
+        (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+        (provider.id === "gemini" && selectedGeminiModel.includes("pro"))
+      ) ? geminiThinkingLevel : undefined,
+      mediaResolution: (
+        (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+        provider.id === "gemini"
+      ) ? geminiMediaResolution : undefined,
+      aspectRatio: (
+        (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+        provider.id === "gemini"
+      ) ? geminiAspectRatio : undefined,
+      // FAL nano-banana-pro 专用参数
+      falNanoBananaAspectRatio: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
+        ? falNanoBananaAspectRatio : undefined,
+      falNanoBananaResolution: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
+        ? falNanoBananaResolution : undefined,
+      falNanoBananaOutputFormat: provider.id === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" 
+        ? falNanoBananaOutputFormat : undefined,
     })
   }
 
@@ -785,19 +1076,205 @@ export function GenerationForm({
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2 rounded-none border-border hover:bg-primary/20 hover:text-primary font-mono text-xs"
-            onClick={() => {
-              resetForm()
-              onReset?.()
-            }}
-          >
-            <RotateCcw className="h-3 w-3" />
-            RESET_SYSTEM
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 rounded-none border-border hover:bg-green-500/20 hover:text-green-600 hover:border-green-500 font-mono text-xs"
+              onClick={saveCurrentParams}
+              title="保存当前参数配置"
+            >
+              <Download className="h-3 w-3" />
+              SAVE_PARAMS
+            </Button>
+            
+            <Dialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 rounded-none border-border hover:bg-primary/20 hover:text-primary font-mono text-xs"
+                >
+                  <Clock className="h-3 w-3" />
+                  HISTORY ({history.length})
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl max-h-[80vh]">
+                <DialogHeader>
+                  <DialogTitle className="font-mono">历史参数记录</DialogTitle>
+                  <DialogDescription>
+                    选择一条历史记录以快速恢复之前使用的参数配置
+                  </DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] pr-4">
+                  {history.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Clock className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                      <p className="text-sm text-muted-foreground">暂无历史记录</p>
+                      <p className="text-xs text-muted-foreground/70 mt-2">
+                        生成图片后会自动保存参数配置
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {history.map((item) => {
+                        const providerName = 
+                          item.providerId === "fal" ? "FAL" :
+                          item.providerId === "newapi" ? "NewAPI" :
+                          item.providerId === "openrouter" ? "OpenRouter" :
+                          item.providerId === "gemini" ? "Gemini" :
+                          item.providerId
+                        
+                        return (
+                          <div
+                            key={item.id}
+                            className="group relative rounded-lg border border-border bg-card p-4 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer"
+                            onClick={() => loadHistoryParams(item)}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge variant="outline" className="font-mono text-xs">
+                                    {providerName}
+                                  </Badge>
+                                  {item.modelId && (
+                                    <Badge variant="secondary" className="font-mono text-xs truncate max-w-[200px]">
+                                      {item.modelId}
+                                    </Badge>
+                                  )}
+                                  <span className="text-xs text-muted-foreground ml-auto">
+                                    {new Date(item.timestamp).toLocaleString("zh-CN", {
+                                      month: "2-digit",
+                                      day: "2-digit",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                </div>
+                                <p className="text-sm font-medium text-foreground line-clamp-2 mb-2">
+                                  {item.prompt || "(空提示词)"}
+                                </p>
+                                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                  {item.params.imageSize && (
+                                    <span>尺寸: {item.params.imageSize}</span>
+                                  )}
+                                  {item.params.numImages && (
+                                    <span>• 数量: {item.params.numImages}</span>
+                                  )}
+                                  {item.params.seed !== undefined && (
+                                    <span>• Seed: {item.params.seed}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setHistoryToDelete(item.id)
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </ScrollArea>
+                {history.length > 0 && (
+                  <div className="flex justify-between items-center pt-4 border-t">
+                    <p className="text-xs text-muted-foreground">
+                      最多保存 50 条历史记录
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:bg-destructive/10"
+                      onClick={() => setShowClearHistoryConfirm(true)}
+                    >
+                      清空所有历史
+                    </Button>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 rounded-none border-border hover:bg-primary/20 hover:text-primary font-mono text-xs"
+              onClick={() => {
+                resetForm()
+                onReset?.()
+              }}
+            >
+              <RotateCcw className="h-3 w-3" />
+              RESET_SYSTEM
+            </Button>
+          </div>
           </header>
+          
+          {/* 删除单条历史记录确认对话框 */}
+          <AlertDialog open={historyToDelete !== null} onOpenChange={(open) => !open && setHistoryToDelete(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>确认删除</AlertDialogTitle>
+                <AlertDialogDescription>
+                  确定要删除这条历史记录吗？此操作无法撤销。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive hover:bg-destructive/90"
+                  onClick={() => {
+                    if (historyToDelete) {
+                      deleteHistoryItem(historyToDelete)
+                      setHistoryToDelete(null)
+                      toast({
+                        title: "已删除",
+                        description: "历史记录已删除",
+                      })
+                    }
+                  }}
+                >
+                  删除
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          
+          {/* 清空所有历史记录确认对话框 */}
+          <AlertDialog open={showClearHistoryConfirm} onOpenChange={setShowClearHistoryConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>确认清空</AlertDialogTitle>
+                <AlertDialogDescription>
+                  确定要清空所有历史记录吗？此操作将删除全部 {history.length} 条记录且无法撤销。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive hover:bg-destructive/90"
+                  onClick={() => {
+                    clearHistory()
+                    setShowClearHistoryConfirm(false)
+                    setIsHistoryDialogOpen(false)
+                    toast({
+                      title: "已清空",
+                      description: "所有历史记录已清空",
+                    })
+                  }}
+                >
+                  清空
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           <div className="grid gap-6">
           <div className="bg-card/50 p-4 border border-border backdrop-blur-sm">
@@ -805,7 +1282,55 @@ export function GenerationForm({
               <Label htmlFor="prompt" className="text-xs font-mono text-primary">
                   PROMPT_INPUT
                 </Label>
-              <span className="text-[10px] font-mono text-muted-foreground">{prompt.length} / 1000</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono text-muted-foreground">{prompt.length} / 1000</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1"
+                  disabled={!prompt.trim() || isEnhancing}
+                  onClick={async () => {
+                    setIsEnhancing(true)
+                    try {
+                      const res = await fetch("/api/prompt/enhance", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ prompt }),
+                      })
+                      const data = await res.json()
+                      if (!res.ok || !data.enhanced) {
+                        throw new Error(data.error || "提示词优化失败")
+                      }
+                      setPrompt(data.enhanced)
+                      toast({
+                        title: "已优化提示词",
+                        description: "可继续调整后再生成",
+                      })
+                    } catch (error) {
+                      toast({
+                        title: "优化失败",
+                        description: error instanceof Error ? error.message : "无法优化提示词",
+                        variant: "destructive",
+                      })
+                    } finally {
+                      setIsEnhancing(false)
+                    }
+                  }}
+                >
+                  {isEnhancing ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>优化中</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>AI 优化</span>
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
             <Textarea
               id="prompt"
@@ -1003,6 +1528,80 @@ export function GenerationForm({
                   {falModelsError ? <p className="text-xs text-destructive">加载 FAL 模型失败：{falModelsError}</p> : null}
                 </div>
               ) : null}
+
+              {safeSelectedProvider === "fal" && selectedFalModel === "fal-ai/nano-banana-pro" && (
+                <>
+                  <div className="sm:col-span-2 w-full">
+                    <div className="border-l-4 border-primary bg-primary/10 px-4 py-3 rounded">
+                      <p className="text-sm text-gray-900 font-medium">
+                        Nano Banana Pro (Gemini 3 Pro Image)
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Google 最新的图片生成模型，支持自定义宽高比、分辨率和输出格式
+                      </p>
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2 grid gap-4 grid-cols-1 md:grid-cols-3 w-full">
+                    <div className="space-y-2">
+                    <Label htmlFor="fal-nano-aspect" className="text-sm font-medium text-gray-900">
+                      宽高比
+                    </Label>
+                    <Select
+                      value={falNanoBananaAspectRatio}
+                      onValueChange={(v: any) => setFalNanoBananaAspectRatio(v)}
+                    >
+                      <SelectTrigger id="fal-nano-aspect" className="w-full h-10">
+                        <SelectValue placeholder="选择宽高比" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["21:9","16:9","3:2","4:3","5:4","1:1","4:5","3:4","2:3","9:16"].map((r) => (
+                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fal-nano-resolution" className="text-sm font-medium text-gray-900">
+                      分辨率
+                    </Label>
+                    <Select
+                      value={falNanoBananaResolution}
+                      onValueChange={(v: any) => setFalNanoBananaResolution(v)}
+                    >
+                      <SelectTrigger id="fal-nano-resolution" className="w-full h-10">
+                        <SelectValue placeholder="选择分辨率" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="4K">4K - 最高质量（耗时较长）</SelectItem>
+                        <SelectItem value="2K">2K - 推荐平衡</SelectItem>
+                        <SelectItem value="1K">1K - 快速生成</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      提示：4K 分辨率需要较长时间，建议先尝试 2K
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fal-nano-format" className="text-sm font-medium text-gray-900">
+                      输出格式
+                    </Label>
+                    <Select
+                      value={falNanoBananaOutputFormat}
+                      onValueChange={(v: any) => setFalNanoBananaOutputFormat(v)}
+                    >
+                      <SelectTrigger id="fal-nano-format" className="w-full h-10">
+                        <SelectValue placeholder="选择格式" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="png">PNG - 无损压缩，质量最高</SelectItem>
+                        <SelectItem value="jpeg">JPEG - 有损压缩，文件较小</SelectItem>
+                        <SelectItem value="webp">WebP - 现代格式，平衡质量与大小</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                </>
+              )}
               
               {safeSelectedProvider === "newapi" ? (
                 <div className="space-y-2">
@@ -1016,7 +1615,7 @@ export function GenerationForm({
                         variant="outline"
                         role="combobox"
                         aria-expanded={isNewapiModelPopoverOpen}
-                        className="flex w-full min-w-0 items-center justify-between gap-4 rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-10 w-full min-w-0 items-center justify-between gap-4 rounded-lg border-2 border-gray-200 bg-white px-3 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <span className="text-left truncate" title={newapiModelButtonLabel}>
                           {newapiModelButtonLabel}
@@ -1057,24 +1656,27 @@ export function GenerationForm({
                                         setSelectedNewapiModel(model.id)
                                         setIsNewapiModelPopoverOpen(false)
                                       }}
-                                      className={cn(
-                                        "mb-1 cursor-pointer rounded-lg border-2 border-transparent px-3 py-3 transition-all",
-                                        "hover:border-gray-200 hover:bg-gray-50",
-                                        "aria-selected:border-gray-300 aria-selected:bg-gray-50",
-                                        selectedNewapiModel === model.id && "border-gray-900 bg-gray-50"
-                                      )}
-                                    >
-                                      <div className="flex flex-1 flex-col gap-0.5">
-                                        <span className="text-sm font-semibold text-gray-900">{model.id}</span>
-                                        {model.channel && model.channel !== "default" && (
-                                          <span className="text-xs text-gray-500">渠道：{model.channel}</span>
+                                     className={cn(
+                                       "mb-1 cursor-pointer rounded-lg border-2 border-transparent px-3 py-3 transition-all",
+                                       "hover:border-gray-200 hover:bg-gray-50",
+                                       "aria-selected:border-gray-300 aria-selected:bg-gray-50",
+                                       selectedNewapiModel === model.id && "border-gray-900 bg-gray-50"
+                                     )}
+                                   >
+                                     <div className="flex flex-1 flex-col gap-0.5">
+                                       <span className="text-sm font-semibold text-gray-900">{model.id}</span>
+                                       {model.channel && model.channel !== "default" && (
+                                         <span className="text-xs text-gray-500">渠道：{model.channel}</span>
+                                       )}
+                                        {model.id.toLowerCase().startsWith("gemini") && (
+                                          <span className="text-[10px] text-amber-600">Gemini 模型</span>
                                         )}
-                                      </div>
-                                      {selectedNewapiModel === model.id ? (
-                                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-900">
-                                          <Check className="h-3 w-3 text-white" />
-                                        </div>
-                                      ) : null}
+                                     </div>
+                                     {selectedNewapiModel === model.id ? (
+                                       <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-900">
+                                         <Check className="h-3 w-3 text-white" />
+                                       </div>
+                                     ) : null}
                                     </CommandItem>
                                   ))
                                 ) : (
@@ -1117,6 +1719,67 @@ export function GenerationForm({
                 </div>
               ) : null}
 
+              {safeSelectedProvider === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini") && (
+                <div className="sm:col-span-2 grid gap-4 grid-cols-1 md:grid-cols-3 w-full">
+                  <div className="space-y-2">
+                    <Label htmlFor="gemini-thinking" className="text-sm font-medium text-gray-900">
+                      思考等级
+                    </Label>
+                    <Select
+                      value={geminiThinkingLevel}
+                      onValueChange={(v: "low" | "high") => setGeminiThinkingLevel(v)}
+                    >
+                      <SelectTrigger id="gemini-thinking" className="w-full h-10">
+                        <SelectValue placeholder="选择思考等级" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="high">High - 深度推理，质量更高</SelectItem>
+                        <SelectItem value="low">Low - 更快速，成本更低</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="gemini-resolution" className="text-sm font-medium text-gray-900">
+                      媒体分辨率
+                    </Label>
+                    <Select
+                      value={geminiMediaResolution}
+                      onValueChange={(v: any) => setGeminiMediaResolution(v)}
+                    >
+                      <SelectTrigger id="gemini-resolution" className="w-full h-10">
+                        <SelectValue placeholder="选择分辨率" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="media_resolution_high">高 4K（细节优先，耗时较长）</SelectItem>
+                        <SelectItem value="media_resolution_medium">中 2K（推荐）</SelectItem>
+                        <SelectItem value="media_resolution_low">低 1K（速度优先）</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      提示：4K 分辨率可能需要较长时间，建议先尝试 2K
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="gemini-aspect" className="text-sm font-medium text-gray-900">
+                      宽高比
+                    </Label>
+                    <Select
+                      value={geminiAspectRatio}
+                      onValueChange={(v: any) => setGeminiAspectRatio(v)}
+                    >
+                      <SelectTrigger id="gemini-aspect" className="w-full h-10">
+                        <SelectValue placeholder="选择宽高比" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["1:1","2:3","3:2","3:4","4:3","4:5","5:4","9:16","16:9","21:9"].map((r) => (
+                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
               {safeSelectedProvider === "openrouter" ? (
                 <div className="space-y-2">
                   <Label htmlFor="openrouter-model" className="text-sm font-medium text-gray-900">
@@ -1129,7 +1792,7 @@ export function GenerationForm({
                         variant="outline"
                         role="combobox"
                         aria-expanded={isOpenRouterModelPopoverOpen}
-                        className="flex w-full min-w-0 items-center justify-between gap-4 rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-10 w-full min-w-0 items-center justify-between gap-4 rounded-lg border-2 border-gray-200 bg-white px-3 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <span className="text-left truncate" title={openrouterModelButtonLabel}>
                           {openrouterModelButtonLabel}
@@ -1199,6 +1862,95 @@ export function GenerationForm({
                   </Popover>
                 </div>
               ) : null}
+
+              {safeSelectedProvider === "gemini" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="gemini-model" className="text-sm font-medium text-gray-900">
+                    Gemini 模型
+                  </Label>
+                  <Select value={selectedGeminiModel} onValueChange={setSelectedGeminiModel}>
+                    <SelectTrigger id="gemini-model" className="h-10">
+                      <SelectValue placeholder="选择 Gemini 模型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {geminiModels.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">{model.name}</span>
+                            <span className="text-xs text-gray-500">{model.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">
+                    Flash: 快速高效，1K 分辨率 | Pro: 高级模型，支持 4K 和深度思考
+                  </p>
+                </div>
+              ) : null}
+
+              {safeSelectedProvider === "gemini" && (
+                <div className="sm:col-span-2 grid gap-4 grid-cols-1 md:grid-cols-3 w-full">
+                  {selectedGeminiModel.includes("pro") && (
+                    <div className="space-y-2">
+                      <Label htmlFor="gemini-thinking-level" className="text-sm font-medium text-gray-900">
+                        思考等级
+                      </Label>
+                      <Select
+                        value={geminiThinkingLevel}
+                        onValueChange={(v: "low" | "high") => setGeminiThinkingLevel(v)}
+                      >
+                        <SelectTrigger id="gemini-thinking-level" className="w-full h-10">
+                          <SelectValue placeholder="选择思考等级" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="high">High - 深度推理，质量更高</SelectItem>
+                          <SelectItem value="low">Low - 更快速，成本更低</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="gemini-media-resolution" className="text-sm font-medium text-gray-900">
+                      媒体分辨率
+                    </Label>
+                    <Select
+                      value={geminiMediaResolution}
+                      onValueChange={(v: any) => setGeminiMediaResolution(v)}
+                    >
+                      <SelectTrigger id="gemini-media-resolution" className="w-full h-10">
+                        <SelectValue placeholder="选择分辨率" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="media_resolution_high">高 4K（细节优先，耗时较长）</SelectItem>
+                        <SelectItem value="media_resolution_medium">中 2K（推荐）</SelectItem>
+                        <SelectItem value="media_resolution_low">低 1K（速度优先）</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      提示：4K 分辨率可能需要较长时间，建议先尝试 2K
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="gemini-aspect-ratio" className="text-sm font-medium text-gray-900">
+                      宽高比
+                    </Label>
+                    <Select
+                      value={geminiAspectRatio}
+                      onValueChange={(v: any) => setGeminiAspectRatio(v)}
+                    >
+                      <SelectTrigger id="gemini-aspect-ratio" className="w-full h-10">
+                        <SelectValue placeholder="选择宽高比" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["1:1","2:3","3:2","3:4","4:3","4:5","5:4","9:16","16:9","21:9"].map((r) => (
+                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
             </div>
             
             {safeSelectedProvider === "newapi" ? (
@@ -1266,40 +2018,39 @@ export function GenerationForm({
             </header>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="size" className="text-sm font-medium text-gray-900">
-                  图片尺寸
-                </Label>
-                <Select
-                  value={safeImageSizeSelection}
-                  onValueChange={(val) => {
-                    setImageSizeSelection(val)
-                  }}
-                  disabled={safeSelectedProvider === "" || providerOptions.length === 0}
-                >
-                  <SelectTrigger id="size">
-                    <SelectValue placeholder="选择图片尺寸" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {imageSizeOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {isCustomSelection && (
+              {!(safeSelectedProvider === "fal" && selectedFalModel === "fal-ai/nano-banana-pro") && (
+                <div className="space-y-2">
+                  <Label htmlFor="size" className="text-sm font-medium text-gray-900">
+                    图片尺寸
+                  </Label>
+                  <Select
+                    value={safeImageSizeSelection}
+                    onValueChange={(val) => {
+                      setImageSizeSelection(val)
+                    }}
+                    disabled={safeSelectedProvider === "" || providerOptions.length === 0}
+                  >
+                    <SelectTrigger id="size">
+                      <SelectValue placeholder="选择图片尺寸" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {imageSizeOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {isCustomSelection && (
                   <div className="space-y-2 pt-2">
                     <div className="flex items-center gap-2">
                       <Label className="text-xs text-gray-700">自定义尺寸</Label>
                       {customApplyState === "success" && customSizeApplied ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
-                          <span aria-hidden>✅</span>
                           <span>已应用：{customSizeApplied.replace("x", " × ")}</span>
                         </span>
                       ) : customApplyState === "error" ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
-                          <span aria-hidden>⚠️</span>
                           <span>请检查输入</span>
                         </span>
                       ) : null}
@@ -1365,8 +2116,9 @@ export function GenerationForm({
                       {customSizeFeedback ? customSizeFeedback.message : ""}
                     </p>
                   </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="num_images" className="text-sm font-medium text-gray-900">
@@ -1386,44 +2138,57 @@ export function GenerationForm({
                 )}
               </div>
 
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="seed" className="text-sm font-medium text-gray-900">
-                  随机种子 <span className="text-xs text-gray-500">（可选）</span>
-                </Label>
-                <Input
-                  id="seed"
-                  type="number"
-                  placeholder="保持为空将随机生成"
-                  value={seed ?? ""}
-                  onChange={(e) => setSeed(e.target.value ? Number(e.target.value) : undefined)}
-                />
+              <div className="flex items-center justify-between sm:col-span-2 pt-2">
+                <p className="text-sm font-medium text-gray-900">高级设置</p>
+                <Button variant="outline" size="sm" onClick={() => setShowAdvanced((v) => !v)}>
+                  {showAdvanced ? "收起" : "展开"}
+                </Button>
               </div>
+
+              {showAdvanced && (
+                <>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="seed" className="text-sm font-medium text-gray-900">
+                      随机种子 <span className="text-xs text-gray-500">（可选）</span>
+                    </Label>
+                    <Input
+                      id="seed"
+                      type="number"
+                      placeholder="保持为空将随机生成"
+                      value={seed ?? ""}
+                      onChange={(e) => setSeed(e.target.value ? Number(e.target.value) : undefined)}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </section>
 
-          <section className="rounded-lg border border-gray-200 bg-white p-4">
-            <header className="pb-4">
-              <h3 className="text-sm font-semibold text-gray-900">高级选项</h3>
-            </header>
+          {showAdvanced && (
+            <section className="rounded-lg border border-gray-200 bg-white p-4">
+              <header className="pb-4">
+                <h3 className="text-sm font-semibold text-gray-900">高级选项</h3>
+              </header>
 
-            <div className="grid gap-3">
-              <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">安全检查</p>
-                  <p className="text-xs text-gray-600">启用内容安全过滤，确保生成内容合规</p>
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">安全检查</p>
+                    <p className="text-xs text-gray-600">启用内容安全过滤，确保生成内容合规</p>
+                  </div>
+                  <Switch id="safety" checked={safetyChecker} onCheckedChange={setSafetyChecker} />
                 </div>
-                <Switch id="safety" checked={safetyChecker} onCheckedChange={setSafetyChecker} />
-              </div>
 
-              <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">同步模式</p>
-                  <p className="text-xs text-gray-600">等待生成完成后再返回结果</p>
+                <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">同步模式</p>
+                    <p className="text-xs text-gray-600">等待生成完成后再返回结果</p>
+                  </div>
+                  <Switch id="sync" checked={syncMode} onCheckedChange={setSyncMode} />
                 </div>
-                <Switch id="sync" checked={syncMode} onCheckedChange={setSyncMode} />
               </div>
-            </div>
-          </section>
+            </section>
+          )}
         </div>
 
         <Button
