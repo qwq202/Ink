@@ -51,6 +51,8 @@ interface GenerationFormProps {
   onPromptSet?: () => void
   initialParams?: Partial<GenerationParams>
   onOpenSettings?: (tab?: string) => void
+  onImagesChange?: (files: File[]) => void
+  onModeChange?: (mode: "img2img" | "txt2img") => void
 }
 
 export function GenerationForm({
@@ -64,6 +66,8 @@ export function GenerationForm({
   onPromptSet,
   initialParams,
   onOpenSettings,
+  onImagesChange,
+  onModeChange,
 }: GenerationFormProps) {
   // 注意：为避免服务端/客户端初始 HTML 不一致导致的 Hydration 报错
   // 这里不在初始 state 读取 localStorage，而是统一在后续 effect 中恢复
@@ -778,7 +782,7 @@ export function GenerationForm({
   }, [openrouterModels])
 
   // 手动保存当前参数
-  const saveCurrentParams = useCallback(() => {
+  const saveCurrentParams = useCallback(async () => {
     if (!prompt.trim()) {
       toast({
         title: "无法保存",
@@ -810,10 +814,29 @@ export function GenerationForm({
       ? selectedGeminiModel
       : undefined
     
+    // 如果是图生图模式，将上传的图片转换为 base64 保存
+    let sourceImages: string[] | undefined
+    if (mode === "img2img" && images.length > 0) {
+      sourceImages = []
+      for (const file of images) {
+        try {
+          const reader = new FileReader()
+          const base64 = await new Promise<string>((resolve) => {
+            reader.onload = () => resolve(reader.result as string)
+            reader.readAsDataURL(file)
+          })
+          sourceImages.push(base64)
+        } catch (error) {
+          console.error("转换图片失败:", error)
+        }
+      }
+    }
+    
     addHistoryItem({
       prompt,
       providerId: provider.id,
       modelId,
+      sourceImages,
       params: {
         imageSize: effectiveImageSize,
         numImages: safeNumImages,
@@ -848,7 +871,9 @@ export function GenerationForm({
       description: "当前配置已保存到历史记录",
     })
   }, [
-    prompt, 
+    prompt,
+    mode,
+    images,
     safeSelectedProvider, 
     selectedFalModel,
     selectedNewapiModel,
@@ -873,7 +898,7 @@ export function GenerationForm({
   ])
 
   // 加载历史记录参数
-  const loadHistoryParams = useCallback((historyItem: GenerationHistoryItem) => {
+  const loadHistoryParams = useCallback(async (historyItem: GenerationHistoryItem) => {
     setPrompt(historyItem.prompt)
     setSelectedProvider(historyItem.providerId)
     
@@ -915,12 +940,33 @@ export function GenerationForm({
     if (params.falNanoBananaResolution) setFalNanoBananaResolution(params.falNanoBananaResolution)
     if (params.falNanoBananaOutputFormat) setFalNanoBananaOutputFormat(params.falNanoBananaOutputFormat)
     
+    // 如果有原图，恢复到上传区
+    if (historyItem.sourceImages && historyItem.sourceImages.length > 0 && onImagesChange && onModeChange) {
+      try {
+        const files: File[] = []
+        for (let i = 0; i < historyItem.sourceImages.length; i++) {
+          const base64 = historyItem.sourceImages[i]
+          // 将 base64 转换为 Blob
+          const response = await fetch(base64)
+          const blob = await response.blob()
+          const file = new File([blob], `restored-image-${i + 1}.png`, { type: "image/png" })
+          files.push(file)
+        }
+        // 添加到上传区
+        onImagesChange(files)
+        // 切换到图生图模式
+        onModeChange("img2img")
+      } catch (error) {
+        console.error("恢复原图失败:", error)
+      }
+    }
+    
     setIsHistoryDialogOpen(false)
     toast({
       title: "已加载历史参数",
       description: historyItem.label || `参数于 ${new Date(historyItem.timestamp).toLocaleString("zh-CN")} 保存`,
     })
-  }, [toast, updateFalModel])
+  }, [toast, updateFalModel, onImagesChange, onModeChange])
 
   const handleGenerate = async () => {
     const isImg2ImgMode = mode === "img2img"
@@ -997,10 +1043,29 @@ export function GenerationForm({
     }
     
     // 保存当前参数到历史记录
+    // 如果是图生图模式，将上传的图片转换为 base64 保存
+    let sourceImages: string[] | undefined
+    if (mode === "img2img" && images.length > 0) {
+      sourceImages = []
+      for (const file of images) {
+        try {
+          const reader = new FileReader()
+          const base64 = await new Promise<string>((resolve) => {
+            reader.onload = () => resolve(reader.result as string)
+            reader.readAsDataURL(file)
+          })
+          sourceImages.push(base64)
+        } catch (error) {
+          console.error("转换图片失败:", error)
+        }
+      }
+    }
+    
     addHistoryItem({
       prompt,
       providerId: provider.id,
       modelId,
+      sourceImages,
       params: {
         imageSize: effectiveImageSize,
         numImages: safeNumImages,

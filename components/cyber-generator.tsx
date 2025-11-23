@@ -900,6 +900,8 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
                   setSettingsTab(tab)
                   setSettingsOpen(true)
                 }}
+                onImagesChange={(files) => upload.addImages(files)}
+                onModeChange={changeMode}
             />
         </div>
       </aside>

@@ -12,6 +12,7 @@ export interface GenerationHistoryItem {
   modelId?: string
   params: Partial<GenerationParams>
   label?: string // 用户自定义的标签名称
+  sourceImages?: string[] // 图生图模式下的原图（base64 格式）
 }
 
 const STORAGE_KEY = "ai-image-generation-history"
