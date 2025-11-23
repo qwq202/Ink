@@ -39,12 +39,18 @@ export interface GenerationResult {
 
 async function callFalAPI(provider: ProviderConfig, params: GenerationParams): Promise<string[]> {
   const normalizeEndpoint = (path: string) => path.replace(/\/$/, "")
+  const isImg2ImgMode = Boolean(params.images?.length)
 
   const computeFalEndpoint = () => {
-    const fallbackModelId = params.modelId?.replace(/^\/+/, "")
+    let fallbackModelId = params.modelId?.replace(/^\/+/, "")
 
     if (!fallbackModelId) {
       return normalizeEndpoint(provider.endpoint)
+    }
+
+    // 如果是 nano-banana-pro 且处于图生图模式，自动使用编辑端点
+    if (fallbackModelId === "fal-ai/nano-banana-pro" && isImg2ImgMode) {
+      fallbackModelId = "fal-ai/nano-banana-pro/edit"
     }
 
     if (provider.endpoint) {
@@ -178,6 +184,14 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
     }
     if (params.falNanoBananaOutputFormat) {
       payload.output_format = params.falNanoBananaOutputFormat
+    }
+    
+    // 图生图模式下，nano-banana-pro/edit 需要使用 image_urls 而不是 image_url
+    if (isImg2ImgMode && payload.image_urls) {
+      delete payload.image_url // 删除单图参数，只保留 image_urls
+      // 编辑模式下的特定参数调整
+      delete payload.enable_safety_checker // 编辑模式不支持 safety checker
+      delete payload.seed // 编辑模式不支持 seed
     }
   }
 
