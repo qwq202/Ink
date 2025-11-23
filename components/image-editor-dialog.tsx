@@ -65,7 +65,7 @@ const getCroppedImg = async (
 
   ctx.putImageData(data, 0, 0)
 
-  // 如果是圆形裁剪，应用圆形遮罩
+  // 如果是圆形裁剪，应用椭圆形遮罩
   if (cropShape === "round") {
     const roundedCanvas = document.createElement("canvas")
     const roundedCtx = roundedCanvas.getContext("2d")
@@ -77,20 +77,21 @@ const getCroppedImg = async (
     roundedCanvas.width = pixelCrop.width
     roundedCanvas.height = pixelCrop.height
 
-    // 创建圆形路径
+    // 创建椭圆形路径（保持用户选择的宽高比）
     const centerX = pixelCrop.width / 2
     const centerY = pixelCrop.height / 2
-    const radius = Math.min(pixelCrop.width, pixelCrop.height) / 2
+    const radiusX = pixelCrop.width / 2
+    const radiusY = pixelCrop.height / 2
 
     roundedCtx.beginPath()
-    roundedCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
+    roundedCtx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, 2 * Math.PI)
     roundedCtx.closePath()
     roundedCtx.clip()
 
     // 在裁剪区域内绘制图片
     roundedCtx.drawImage(canvas, 0, 0)
 
-    // 使用圆形裁剪的 canvas
+    // 使用椭圆形裁剪的 canvas
     return new Promise((resolve, reject) => {
       roundedCanvas.toBlob((blob) => {
         if (!blob) {
