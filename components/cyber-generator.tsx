@@ -32,8 +32,13 @@ import {
   Star,
   RotateCcw,
   Package,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react"
+import { useTheme } from "next-themes"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useToast } from "@/hooks/use-toast"
@@ -297,6 +302,29 @@ const HistoryPanel = memo(function HistoryPanel({
     </div>
   )
 })
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme()
+  const icon = theme === "dark" ? <Moon className="size-4" /> : theme === "light" ? <Sun className="size-4" /> : <Monitor className="size-4" />
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon">{icon}</Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => setTheme("light")}>
+          <Sun className="size-4 mr-2" />亮色
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("dark")}>
+          <Moon className="size-4 mr-2" />暗色
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("system")}>
+          <Monitor className="size-4 mr-2" />跟随系统
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 export function CyberGenerator({ onBack }: CyberGeneratorProps) {
   const [mode, setMode] = useState<"img2img" | "txt2img">("txt2img")
@@ -676,7 +704,7 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
       <nav className="h-14 border-b px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
-            <img src="/icon" alt="logo" width={20} height={20} />
+            <ImageIcon className="size-5" />
             <span className="font-semibold text-lg">Ink</span>
           </div>
           <ToggleGroup
@@ -700,6 +728,7 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
               {queueStatus.tasks.length} 个任务
             </Badge>
           )}
+          <ThemeToggle />
           <Button variant="ghost" size="icon" onClick={() => { setSettingsTab(undefined); setSettingsOpen(true) }}>
             <Settings className="size-4" />
           </Button>
