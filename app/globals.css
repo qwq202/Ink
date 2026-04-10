@@ -32,7 +32,7 @@
   --input: oklch(0.92 0 0);
   --ring: oklch(0.48 0.21 250);
 
-  --radius: 4px;
+  --radius: 8px;
 
   --sidebar: oklch(0.99 0 0);
   --sidebar-foreground: oklch(0.13 0 0);
