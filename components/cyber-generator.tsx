@@ -305,7 +305,9 @@ const HistoryPanel = memo(function HistoryPanel({
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme()
-  const icon = theme === "dark" ? <Moon className="size-4" /> : theme === "light" ? <Sun className="size-4" /> : <Monitor className="size-4" />
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const icon = !mounted ? <Monitor className="size-4" /> : theme === "dark" ? <Moon className="size-4" /> : theme === "light" ? <Sun className="size-4" /> : <Monitor className="size-4" />
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
