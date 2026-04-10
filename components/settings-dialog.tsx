@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { Save, Eye, EyeOff, Check } from "lucide-react"
+import { Save, Eye, EyeOff, Check, Settings } from "lucide-react"
 import { useProviderSettings } from "@/hooks/use-provider-settings"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
@@ -123,6 +123,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
   const [internalTab, setInternalTab] = useState("fal")
   const activeProvider = activeTab ?? internalTab
   const safetyNote = "密钥仅保存在本地加密存储，不会上传到服务器。"
+  const [requestOrigin, setRequestOrigin] = useState<"client" | "server">("client")
 
   const isEnabled = (id: string) => {
     switch (id) {
@@ -144,6 +145,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
       enabled: settings.fal.enabled,
       requestOrigin: settings.fal.requestOrigin ?? "client",
     })
+    setRequestOrigin(settings.fal.requestOrigin ?? "client")
 
     setOpenaiConfig({
       apiKey: settings.openai.apiKey,
@@ -170,8 +172,13 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
   }, [settings])
 
   const handleSaveFal = async () => {
-    await updateProvider("fal", falConfig)
+    await updateProvider("fal", { ...falConfig, requestOrigin })
     toast({ title: "配置已保存", description: "FAL 配置已成功保存" })
+  }
+
+  const handleSaveSystem = async () => {
+    await updateProvider("fal", { ...falConfig, requestOrigin })
+    toast({ title: "设置已保存", description: "系统设置已成功保存" })
   }
 
   const handleSaveOpenAI = async () => {
@@ -292,7 +299,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
 
         <div className="flex min-h-[560px] max-h-[calc(100vh-12rem)] overflow-hidden">
           {/* Left: Provider List */}
-          <nav className="w-52 shrink-0 border-r bg-muted/30 p-2 space-y-0.5 overflow-y-auto">
+          <nav className="w-52 shrink-0 border-r bg-muted/30 p-2 flex flex-col gap-0.5 overflow-y-auto">
             {PROVIDERS.map((p) => (
               <div
                 key={p.id}
@@ -325,6 +332,23 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                 />
               </div>
             ))}
+            <div className="mt-auto pt-2 border-t">
+              <div
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm transition-colors cursor-pointer",
+                  activeProvider === "system"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                )}
+                onClick={() => {
+                  setInternalTab("system")
+                  onTabChange?.("system")
+                }}
+              >
+                <Settings className="h-3.5 w-3.5 shrink-0" />
+                <span className="flex-1 font-medium">系统设置</span>
+              </div>
+            </div>
           </nav>
 
           {/* Right: Config Form */}
@@ -359,27 +383,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   safetyNote={safetyNote}
                 />
 
-                <div className="space-y-1.5">
-                  <Label className="text-sm">请求发送方式</Label>
-                  <Select
-                    value={falConfig.requestOrigin}
-                    onValueChange={(value: "client" | "server") =>
-                      setFalConfig((prev) => ({ ...prev, requestOrigin: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择请求发送方式" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="client">客户端直连 FAL（默认）</SelectItem>
-                      <SelectItem value="server">通过服务器代理请求</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    客户端直连速度更快；若需隐藏 API Key 或绕过网络限制，可改为服务器代理。
-                  </p>
-                </div>
-
                 <p className="rounded-md border border-dashed bg-muted px-3 py-2 text-xs text-muted-foreground">
                   模型调用地址会自动匹配所选模型，无需手动填写端点。
                 </p>
@@ -393,6 +396,39 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                     测试连接
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {activeProvider === "system" && (
+              <div className="space-y-5">
+                <div>
+                  <h3 className="text-base font-medium">系统设置</h3>
+                  <p className="text-xs text-muted-foreground">全局请求与网络配置</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm">请求发送方式</Label>
+                  <Select
+                    value={requestOrigin}
+                    onValueChange={(value: "client" | "server") => setRequestOrigin(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择请求发送方式" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="client">客户端直连（默认）</SelectItem>
+                      <SelectItem value="server">通过服务器代理请求</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    客户端直连速度更快；若需隐藏 API Key 或绕过网络限制，可改为服务器代理。
+                  </p>
+                </div>
+
+                <Button onClick={handleSaveSystem}>
+                  <Save className="mr-2 h-4 w-4" />
+                  保存设置
+                </Button>
               </div>
             )}
 
