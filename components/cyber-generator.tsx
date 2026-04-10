@@ -746,7 +746,7 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
                     value={historySearch}
                     onChange={(e) => setHistorySearch(e.target.value)}
                     placeholder="搜索提示词或模型..."
-                    className="pl-9"
+                    className="pl-9 h-9"
                   />
                   {historySearch && (
                     <button
@@ -758,6 +758,8 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
                   )}
                 </div>
                 <Button
+                  size="sm"
+                  className="h-9"
                   variant={historyFilters.favoritesOnly ? "default" : "outline"}
                   onClick={() => setHistoryFilters((prev) => ({ ...prev, favoritesOnly: !prev.favoritesOnly }))}
                 >
