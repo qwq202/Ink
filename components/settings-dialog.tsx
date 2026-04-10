@@ -284,13 +284,13 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl bg-card text-foreground border-border p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-4xl w-[calc(100vw-3rem)] bg-card text-foreground border-border p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle>设置</DialogTitle>
           <DialogDescription>配置各 AI 服务的连接与密钥</DialogDescription>
         </DialogHeader>
 
-        <div className="flex min-h-[480px]">
+        <div className="flex min-h-[560px] max-h-[calc(100vh-12rem)]">
           {/* Left: Provider List */}
           <nav className="w-48 shrink-0 border-r bg-muted/30 p-2 space-y-0.5 overflow-y-auto">
             {PROVIDERS.map((p) => (
