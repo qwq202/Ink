@@ -70,7 +70,6 @@ function KeyInput({
         </Button>
       </div>
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      {safetyNote && <p className="text-[10px] text-muted-foreground">{safetyNote}</p>}
     </div>
   )
 }
@@ -358,7 +357,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">FAL</h3>
-                  <p className="text-xs text-muted-foreground">FAL 队列服务</p>
                 </div>
 
                 <KeyInput
@@ -384,9 +382,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   safetyNote={safetyNote}
                 />
 
-                <p className="rounded-md border border-dashed bg-muted px-3 py-2 text-xs text-muted-foreground">
-                  模型调用地址会自动匹配所选模型，无需手动填写端点。
-                </p>
               </div>
               <div className="shrink-0 p-4 pt-0 grid grid-cols-2 gap-2">
                 <Button onClick={handleSaveFal}>
@@ -405,7 +400,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">系统设置</h3>
-                  <p className="text-xs text-muted-foreground">全局请求与网络配置</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -422,9 +416,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                       <SelectItem value="server">通过服务器代理请求</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
-                    客户端直连速度更快；若需隐藏 API Key 或绕过网络限制，可改为服务器代理。
-                  </p>
                 </div>
 
               </div>
@@ -442,7 +433,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">OpenAI</h3>
-                  <p className="text-xs text-muted-foreground">OpenAI 图片生成</p>
                 </div>
 
                 <KeyInput
@@ -484,7 +474,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">NewAPI</h3>
-                  <p className="text-xs text-muted-foreground">NewAPI 接口</p>
                 </div>
 
                 <KeyInput
@@ -506,12 +495,8 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                     value={newapiConfig.endpoint}
                     onChange={(e) => setNewapiConfig({ ...newapiConfig, endpoint: e.target.value })}
                   />
-                  <p className="text-xs text-muted-foreground">地址会自动补全</p>
                 </div>
 
-                <p className="rounded-md border border-dashed bg-muted px-3 py-2 text-xs text-muted-foreground">
-                  模型列表首次加载后会自动缓存。
-                </p>
               </div>
               <div className="shrink-0 p-4 pt-0 grid grid-cols-2 gap-2">
                 <Button onClick={handleSaveNewAPI}>
@@ -530,7 +515,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">OpenRouter</h3>
-                  <p className="text-xs text-muted-foreground">OpenRouter 接口</p>
                 </div>
 
                 <KeyInput
@@ -553,12 +537,8 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                     disabled
                     className="bg-muted cursor-not-allowed"
                   />
-                  <p className="text-xs text-muted-foreground">固定接口地址</p>
                 </div>
 
-                <p className="rounded-md border border-dashed bg-muted px-3 py-2 text-xs text-muted-foreground">
-                  模型列表会自动缓存，并自动筛选出可生成图像的模型。
-                </p>
               </div>
               <div className="shrink-0 p-4 pt-0 grid grid-cols-2 gap-2">
                 <Button onClick={handleSaveOpenRouter}>
@@ -577,7 +557,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">Gemini</h3>
-                  <p className="text-xs text-muted-foreground">Google Gemini</p>
                 </div>
 
                 <KeyInput
@@ -600,12 +579,8 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                     disabled
                     className="bg-muted cursor-not-allowed"
                   />
-                  <p className="text-xs text-muted-foreground">固定接口地址，无需修改</p>
                 </div>
 
-                <p className="rounded-md border border-dashed bg-muted px-3 py-2 text-xs text-muted-foreground">
-                  支持 Gemini 2.5 Flash Image 和 Gemini 3 Pro Image 模型，可生成最高 4K 分辨率图片。
-                </p>
               </div>
               <div className="shrink-0 px-4 pb-4">
                 <Button className="w-full" onClick={handleSaveGemini}>
