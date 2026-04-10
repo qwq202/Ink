@@ -292,26 +292,38 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
 
         <div className="flex min-h-[560px] max-h-[calc(100vh-12rem)] overflow-hidden">
           {/* Left: Provider List */}
-          <nav className="w-48 shrink-0 border-r bg-muted/30 p-2 space-y-0.5 overflow-y-auto">
+          <nav className="w-52 shrink-0 border-r bg-muted/30 p-2 space-y-0.5 overflow-y-auto">
             {PROVIDERS.map((p) => (
-              <button
+              <div
                 key={p.id}
-                onClick={() => {
-                  setInternalTab(p.id)
-                  onTabChange?.(p.id)
-                }}
                 className={cn(
-                  "w-full flex items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm transition-colors",
+                  "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm transition-colors",
                   activeProvider === p.id
-                    ? "bg-accent text-accent-foreground font-medium"
+                    ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                 )}
               >
-                <span className="flex-1">{p.label}</span>
-                {isEnabled(p.id) && (
-                  <Check className="h-3.5 w-3.5 text-primary shrink-0" />
-                )}
-              </button>
+                <button
+                  className="flex-1 text-left font-medium"
+                  onClick={() => {
+                    setInternalTab(p.id)
+                    onTabChange?.(p.id)
+                  }}
+                >
+                  {p.label}
+                </button>
+                <Switch
+                  checked={isEnabled(p.id)}
+                  onCheckedChange={(checked) => {
+                    if (p.id === "fal") setFalConfig((c) => ({ ...c, enabled: checked }))
+                    else if (p.id === "openai") setOpenaiConfig((c) => ({ ...c, enabled: checked }))
+                    else if (p.id === "newapi") setNewapiConfig((c) => ({ ...c, enabled: checked }))
+                    else if (p.id === "openrouter") setOpenrouterConfig((c) => ({ ...c, enabled: checked }))
+                    else if (p.id === "gemini") setGeminiConfig((c) => ({ ...c, enabled: checked }))
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
             ))}
           </nav>
 
@@ -322,17 +334,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                 <div>
                   <h3 className="text-base font-medium">FAL</h3>
                   <p className="text-xs text-muted-foreground">FAL 队列服务</p>
-                </div>
-
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <div>
-                    <Label className="text-sm">启用 FAL 队列</Label>
-                    <p className="text-xs text-muted-foreground">使用 FAL 进行图像生成</p>
-                  </div>
-                  <Switch
-                    checked={falConfig.enabled}
-                    onCheckedChange={(checked) => setFalConfig({ ...falConfig, enabled: checked })}
-                  />
                 </div>
 
                 <KeyInput
@@ -402,17 +403,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   <p className="text-xs text-muted-foreground">OpenAI 图片生成</p>
                 </div>
 
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <div>
-                    <Label className="text-sm">启用 OpenAI 图片生成</Label>
-                    <p className="text-xs text-muted-foreground">使用 OpenAI 进行图像生成</p>
-                  </div>
-                  <Switch
-                    checked={openaiConfig.enabled}
-                    onCheckedChange={(checked) => setOpenaiConfig({ ...openaiConfig, enabled: checked })}
-                  />
-                </div>
-
                 <KeyInput
                   id="openai-key"
                   label="OpenAI API Key"
@@ -451,17 +441,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                 <div>
                   <h3 className="text-base font-medium">NewAPI</h3>
                   <p className="text-xs text-muted-foreground">NewAPI 接口</p>
-                </div>
-
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <div>
-                    <Label className="text-sm">启用 NewAPI</Label>
-                    <p className="text-xs text-muted-foreground">使用 NewAPI 接口生成</p>
-                  </div>
-                  <Switch
-                    checked={newapiConfig.enabled}
-                    onCheckedChange={(checked) => setNewapiConfig({ ...newapiConfig, enabled: checked })}
-                  />
                 </div>
 
                 <KeyInput
@@ -509,17 +488,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   <p className="text-xs text-muted-foreground">OpenRouter 接口</p>
                 </div>
 
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <div>
-                    <Label className="text-sm">启用 OpenRouter</Label>
-                    <p className="text-xs text-muted-foreground">使用 OpenRouter 接口生成</p>
-                  </div>
-                  <Switch
-                    checked={openrouterConfig.enabled}
-                    onCheckedChange={(checked) => setOpenrouterConfig({ ...openrouterConfig, enabled: checked })}
-                  />
-                </div>
-
                 <KeyInput
                   id="openrouter-key"
                   label="OpenRouter API Key"
@@ -564,17 +532,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                 <div>
                   <h3 className="text-base font-medium">Gemini</h3>
                   <p className="text-xs text-muted-foreground">Google Gemini</p>
-                </div>
-
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <div>
-                    <Label className="text-sm">启用 Gemini</Label>
-                    <p className="text-xs text-muted-foreground">使用 Google Gemini 图片生成接口</p>
-                  </div>
-                  <Switch
-                    checked={geminiConfig.enabled}
-                    onCheckedChange={(checked) => setGeminiConfig({ ...geminiConfig, enabled: checked })}
-                  />
                 </div>
 
                 <KeyInput
