@@ -676,10 +676,7 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
       <nav className="h-14 border-b px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
-            <svg width="20" height="20" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="16" cy="5" r="4" fill="#3b82f6" />
-              <rect x="12" y="12" width="8" height="16" rx="4" fill="currentColor" />
-            </svg>
+            <img src="/icon" alt="logo" width={20} height={20} />
             <span className="font-semibold text-lg">Ink</span>
           </div>
           <ToggleGroup
