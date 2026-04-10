@@ -303,21 +303,17 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               <div
                 key={p.id}
                 className={cn(
-                  "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm transition-colors",
+                  "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm transition-colors cursor-pointer",
                   activeProvider === p.id
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                 )}
+                onClick={() => {
+                  setInternalTab(p.id)
+                  onTabChange?.(p.id)
+                }}
               >
-                <button
-                  className="flex-1 text-left font-medium"
-                  onClick={() => {
-                    setInternalTab(p.id)
-                    onTabChange?.(p.id)
-                  }}
-                >
-                  {p.label}
-                </button>
+                <span className="flex-1 font-medium">{p.label}</span>
                 <Switch
                   checked={isEnabled(p.id)}
                   onCheckedChange={(checked) => {
