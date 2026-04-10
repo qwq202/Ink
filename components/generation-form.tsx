@@ -2347,7 +2347,7 @@ export function GenerationForm({
                 <>
                   <div className="space-y-2 sm:col-span-2">
                     <Label htmlFor="seed" className="text-sm font-medium text-foreground">
-                      随机种子 <span className="text-xs text-muted-foreground">（可选）</span>
+                      随机种子
                     </Label>
                     <Input
                       id="seed"
