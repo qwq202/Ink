@@ -790,7 +790,7 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
         </main>
 
         {/* RIGHT PANEL */}
-        <aside className="w-[380px] border-l flex flex-col shrink-0 overflow-hidden">
+        <aside className="w-[380px] border-l flex flex-col shrink-0 overflow-hidden shadow-[-4px_0_16px_-4px_rgba(0,0,0,0.06)]">
           <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
             {/* Image Upload (img2img mode) */}
             {mode === "img2img" && (
