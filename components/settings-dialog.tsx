@@ -332,7 +332,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                 />
               </div>
             ))}
-            <div className="mt-auto pt-2 border-t">
+            <div className="mt-auto pt-2">
               <div
                 className={cn(
                   "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm transition-colors cursor-pointer",
