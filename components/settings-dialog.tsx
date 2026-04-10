@@ -352,9 +352,10 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
           </nav>
 
           {/* Right: Config Form */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 flex flex-col overflow-hidden">
             {activeProvider === "fal" && (
-              <div className="space-y-5">
+              <div className="flex flex-col h-full">
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">FAL</h3>
                   <p className="text-xs text-muted-foreground">FAL 队列服务</p>
@@ -386,21 +387,22 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                 <p className="rounded-md border border-dashed bg-muted px-3 py-2 text-xs text-muted-foreground">
                   模型调用地址会自动匹配所选模型，无需手动填写端点。
                 </p>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <Button onClick={handleSaveFal}>
-                    <Save className="mr-2 h-4 w-4" />
-                    保存配置
-                  </Button>
-                  <Button variant="outline" onClick={testFalConnection}>
-                    测试连接
-                  </Button>
-                </div>
+              </div>
+              <div className="shrink-0 border-t p-4 grid grid-cols-2 gap-2">
+                <Button onClick={handleSaveFal}>
+                  <Save className="mr-2 h-4 w-4" />
+                  保存配置
+                </Button>
+                <Button variant="outline" onClick={testFalConnection}>
+                  测试连接
+                </Button>
+              </div>
               </div>
             )}
 
             {activeProvider === "system" && (
-              <div className="space-y-5">
+              <div className="flex flex-col h-full">
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">系统设置</h3>
                   <p className="text-xs text-muted-foreground">全局请求与网络配置</p>
@@ -425,15 +427,19 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   </p>
                 </div>
 
+              </div>
+              <div className="shrink-0 border-t p-4">
                 <Button onClick={handleSaveSystem}>
                   <Save className="mr-2 h-4 w-4" />
                   保存设置
                 </Button>
               </div>
+              </div>
             )}
 
             {activeProvider === "openai" && (
-              <div className="space-y-5">
+              <div className="flex flex-col h-full">
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">OpenAI</h3>
                   <p className="text-xs text-muted-foreground">OpenAI 图片生成</p>
@@ -460,20 +466,22 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <Button onClick={handleSaveOpenAI}>
-                    <Save className="mr-2 h-4 w-4" />
-                    保存配置
-                  </Button>
-                  <Button variant="outline" onClick={testOpenAIConnection}>
-                    测试连接
-                  </Button>
-                </div>
+              </div>
+              <div className="shrink-0 border-t p-4 grid grid-cols-2 gap-2">
+                <Button onClick={handleSaveOpenAI}>
+                  <Save className="mr-2 h-4 w-4" />
+                  保存配置
+                </Button>
+                <Button variant="outline" onClick={testOpenAIConnection}>
+                  测试连接
+                </Button>
+              </div>
               </div>
             )}
 
             {activeProvider === "newapi" && (
-              <div className="space-y-5">
+              <div className="flex flex-col h-full">
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">NewAPI</h3>
                   <p className="text-xs text-muted-foreground">NewAPI 接口</p>
@@ -501,24 +509,25 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   <p className="text-xs text-muted-foreground">地址会自动补全</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <Button onClick={handleSaveNewAPI}>
-                    <Save className="mr-2 h-4 w-4" />
-                    保存配置
-                  </Button>
-                  <Button variant="outline" onClick={testNewApiConnection}>
-                    测试连接
-                  </Button>
-                </div>
-
                 <p className="rounded-md border border-dashed bg-muted px-3 py-2 text-xs text-muted-foreground">
                   模型列表首次加载后会自动缓存。
                 </p>
               </div>
+              <div className="shrink-0 border-t p-4 grid grid-cols-2 gap-2">
+                <Button onClick={handleSaveNewAPI}>
+                  <Save className="mr-2 h-4 w-4" />
+                  保存配置
+                </Button>
+                <Button variant="outline" onClick={testNewApiConnection}>
+                  测试连接
+                </Button>
+              </div>
+              </div>
             )}
 
             {activeProvider === "openrouter" && (
-              <div className="space-y-5">
+              <div className="flex flex-col h-full">
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">OpenRouter</h3>
                   <p className="text-xs text-muted-foreground">OpenRouter 接口</p>
@@ -547,24 +556,25 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   <p className="text-xs text-muted-foreground">固定接口地址</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <Button onClick={handleSaveOpenRouter}>
-                    <Save className="mr-2 h-4 w-4" />
-                    保存配置
-                  </Button>
-                  <Button variant="outline" onClick={testOpenRouterConnection}>
-                    测试连接
-                  </Button>
-                </div>
-
                 <p className="rounded-md border border-dashed bg-muted px-3 py-2 text-xs text-muted-foreground">
                   模型列表会自动缓存，并自动筛选出可生成图像的模型。
                 </p>
               </div>
+              <div className="shrink-0 border-t p-4 grid grid-cols-2 gap-2">
+                <Button onClick={handleSaveOpenRouter}>
+                  <Save className="mr-2 h-4 w-4" />
+                  保存配置
+                </Button>
+                <Button variant="outline" onClick={testOpenRouterConnection}>
+                  测试连接
+                </Button>
+              </div>
+              </div>
             )}
 
             {activeProvider === "gemini" && (
-              <div className="space-y-5">
+              <div className="flex flex-col h-full">
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">Gemini</h3>
                   <p className="text-xs text-muted-foreground">Google Gemini</p>
@@ -593,14 +603,16 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   <p className="text-xs text-muted-foreground">固定接口地址，无需修改</p>
                 </div>
 
+                <p className="rounded-md border border-dashed bg-muted px-3 py-2 text-xs text-muted-foreground">
+                  支持 Gemini 2.5 Flash Image 和 Gemini 3 Pro Image 模型，可生成最高 4K 分辨率图片。
+                </p>
+              </div>
+              <div className="shrink-0 border-t p-4">
                 <Button className="w-full" onClick={handleSaveGemini}>
                   <Save className="mr-2 h-4 w-4" />
                   保存配置
                 </Button>
-
-                <p className="rounded-md border border-dashed bg-muted px-3 py-2 text-xs text-muted-foreground">
-                  支持 Gemini 2.5 Flash Image 和 Gemini 3 Pro Image 模型，可生成最高 4K 分辨率图片。
-                </p>
+              </div>
               </div>
             )}
           </div>
