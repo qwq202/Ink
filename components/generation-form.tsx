@@ -1456,7 +1456,7 @@ export function GenerationForm({
             )}
           </div>
 
-          <section className="bg-card/50 p-4 border border-border rounded-md backdrop-blur-sm">
+          <section className="bg-card p-4 border border-border rounded-md shadow-sm">
             <header className="flex items-center justify-between pb-4">
               <h3 className="text-sm font-medium">模型选择</h3>
               {safeSelectedProvider === "fal" && (
@@ -2219,7 +2219,7 @@ export function GenerationForm({
             ) : null}
           </section>
       
-          <section className="rounded-md border border-border bg-card p-4">
+          <section className="rounded-md border border-border bg-card p-4 shadow-sm">
             <header className="pb-4">
               <h3 className="text-sm font-semibold text-foreground">图片参数</h3>
             </header>
@@ -2371,7 +2371,7 @@ export function GenerationForm({
           )}
 
           {showAdvanced && (
-            <section className="rounded-md border border-border bg-background p-4">
+            <section className="rounded-md border border-border bg-card p-4 shadow-sm">
               <header className="pb-4">
                 <h3 className="text-sm font-semibold text-foreground">高级选项</h3>
               </header>
