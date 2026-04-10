@@ -3,6 +3,10 @@ import { NextResponse } from "next/server"
 const MODEL = "Qwen/Qwen2.5-7B-Instruct"
 const API_URL = "https://api.qunqin.net/v1/chat/completions"
 
+export async function GET() {
+  return NextResponse.json({ available: !!process.env.PROMPT_ENHANCE_API_KEY })
+}
+
 export async function POST(request: Request) {
   try {
     const { prompt, mode } = (await request.json()) as { prompt?: string; mode?: "txt2img" | "img2img" }

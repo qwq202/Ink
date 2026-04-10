@@ -110,6 +110,7 @@ export function GenerationForm({
   const [customApplyState, setCustomApplyState] = useState<"idle" | "success" | "error">("idle")
   const [customSizeAppliedAt, setCustomSizeAppliedAt] = useState<string | null>(null)
   const [isEnhancing, setIsEnhancing] = useState(false)
+  const [enhanceAvailable, setEnhanceAvailable] = useState(false)
   
   // 历史记录状态
   const { history, addHistoryItem, deleteHistoryItem, clearHistory } = useGenerationHistory()
@@ -118,6 +119,13 @@ export function GenerationForm({
   const [showClearHistoryConfirm, setShowClearHistoryConfirm] = useState(false)
 
 
+
+  useEffect(() => {
+    fetch("/api/prompt/enhance")
+      .then((r) => r.json())
+      .then((d) => setEnhanceAvailable(!!d.available))
+      .catch(() => setEnhanceAvailable(false))
+  }, [])
 
   // 只保存用户主动应用的自定义尺寸，不包括预设尺寸
   const customAppliedValue = useMemo(() => {
@@ -1380,7 +1388,8 @@ export function GenerationForm({
                   variant="outline"
                   size="sm"
                   className="h-7 gap-1"
-                  disabled={!prompt.trim() || isEnhancing}
+                  disabled={!prompt.trim() || isEnhancing || !enhanceAvailable}
+                  title={!enhanceAvailable ? "未配置 AI 优化服务" : undefined}
                   onClick={async () => {
                     setIsEnhancing(true)
                     try {
