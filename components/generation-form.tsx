@@ -1298,7 +1298,7 @@ export function GenerationForm({
           <Button
             variant="outline"
             size="sm"
-            className="gap-2 rounded-none border-border hover:bg-primary/20 hover:text-primary font-mono text-xs"
+            className="gap-2 text-xs"
             onClick={() => {
               resetForm()
               onReset?.()
