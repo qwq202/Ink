@@ -4,85 +4,72 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* CYBER LABORATORY THEME - Light Avant Garde Style */
-  
-  /* Base Colors - stark white */
-  --background: oklch(0.98 0 0); /* Pure white lab */
-  --foreground: oklch(0.1 0 0); /* Deep black text */
-  
-  /* Card / Surface - semi-transparent glass */
-  --card: oklch(1 0 0 / 0.8); 
-  --card-foreground: oklch(0.1 0 0);
-  
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.13 0 0);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.13 0 0);
+
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.1 0 0);
-  
-  /* Primary Accent - Electric Indigo (High Contrast) */
-  --primary: oklch(0.45 0.2 280); 
+  --popover-foreground: oklch(0.13 0 0);
+
+  --primary: oklch(0.48 0.21 250);
   --primary-foreground: oklch(1 0 0);
-  
-  /* Secondary Accent - Lab Steel */
-  --secondary: oklch(0.95 0 0);
-  --secondary-foreground: oklch(0.1 0 0);
-  
-  /* Muted - Technical Gray */
-  --muted: oklch(0.96 0 0);
-  --muted-foreground: oklch(0.5 0 0);
-  
-  /* Accent - Acid Green */
-  --accent: oklch(0.85 0.25 140);
-  --accent-foreground: oklch(0.1 0.1 140);
-  
-  --destructive: oklch(0.6 0.25 20);
+
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.13 0 0);
+
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.55 0 0);
+
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.13 0 0);
+
+  --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(1 0 0);
 
-  /* Sharp Industrial Borders */
-  --border: oklch(0.85 0 0);
-  --input: oklch(0.9 0 0);
-  --ring: oklch(0.45 0.2 280);
-  
-  /* No rounded corners - Brutalist/Industrial */
-  --radius: 0px; 
+  --border: oklch(0.92 0 0);
+  --input: oklch(0.92 0 0);
+  --ring: oklch(0.48 0.21 250);
 
-  /* Sidebar specifics */
+  --radius: 4px;
+
   --sidebar: oklch(0.99 0 0);
-  --sidebar-foreground: oklch(0.1 0 0);
-  --sidebar-primary: oklch(0.45 0.2 280);
+  --sidebar-foreground: oklch(0.13 0 0);
+  --sidebar-primary: oklch(0.48 0.21 250);
   --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.95 0 0);
-  --sidebar-accent-foreground: oklch(0.1 0 0);
-  --sidebar-border: oklch(0.9 0 0);
-  --sidebar-ring: oklch(0.45 0.2 280);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.13 0 0);
+  --sidebar-border: oklch(0.92 0 0);
+  --sidebar-ring: oklch(0.48 0.21 250);
 
-  /* Chart colors for visualizations */
-  --chart-1: oklch(0.45 0.2 280);
-  --chart-2: oklch(0.6 0.2 140);
-  --chart-3: oklch(0.4 0.1 40);
-  --chart-4: oklch(0.5 0.1 200);
-  --chart-5: oklch(0.9 0 0);
+  --chart-1: oklch(0.48 0.21 250);
+  --chart-2: oklch(0.55 0.18 160);
+  --chart-3: oklch(0.5 0.15 40);
+  --chart-4: oklch(0.48 0.15 200);
+  --chart-5: oklch(0.6 0.18 310);
 }
 
-/* Force Dark Mode aesthetics even in light mode settings for this specific avant-garde look */
 .dark {
-  --background: oklch(0.02 0 0);
-  --foreground: oklch(0.98 0 0);
-  --card: oklch(0.05 0 0 / 0.6);
-  --card-foreground: oklch(0.9 0 0);
-  --popover: oklch(0.05 0 0);
-  --popover-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.6 0.25 280);
+  --background: oklch(0.12 0 0);
+  --foreground: oklch(0.95 0 0);
+  --card: oklch(0.16 0 0);
+  --card-foreground: oklch(0.95 0 0);
+  --popover: oklch(0.16 0 0);
+  --popover-foreground: oklch(0.95 0 0);
+  --primary: oklch(0.6 0.21 250);
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.2 0 0);
+  --secondary: oklch(0.22 0 0);
   --secondary-foreground: oklch(0.9 0 0);
-  --muted: oklch(0.15 0 0);
+  --muted: oklch(0.22 0 0);
   --muted-foreground: oklch(0.6 0 0);
-  --accent: oklch(0.85 0.25 140);
-  --accent-foreground: oklch(0.1 0.1 140);
-  --destructive: oklch(0.6 0.25 20);
+  --accent: oklch(0.22 0 0);
+  --accent-foreground: oklch(0.9 0 0);
+  --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.2 0 0);
-  --input: oklch(0.15 0 0);
-  --ring: oklch(0.6 0.25 280);
+  --border: oklch(0.28 0 0);
+  --input: oklch(0.22 0 0);
+  --ring: oklch(0.6 0.21 250);
 }
 
 @theme inline {
@@ -112,10 +99,10 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -131,73 +118,23 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground;
-    background-image: 
-      linear-gradient(to right, oklch(0.1 0 0 / 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, oklch(0.1 0 0 / 0.05) 1px, transparent 1px);
-    background-size: 40px 40px;
+    @apply bg-background text-foreground antialiased;
   }
 }
 
 @layer utilities {
-  /* Avant-Garde Animations & Effects */
-
-  .glass-panel {
-    @apply bg-white/40 backdrop-blur-xl border border-black/5 shadow-[0_0_15px_-3px_rgba(0,0,0,0.1)];
-  }
-
-  .neon-border {
-    box-shadow: 0 0 5px theme('colors.primary.DEFAULT'), inset 0 0 5px theme('colors.primary.DEFAULT');
-  }
-
-  .text-glow {
-    text-shadow: 0 0 10px theme('colors.primary.DEFAULT');
-  }
-
-  .animate-scanline {
-    position: relative;
-    overflow: hidden;
-  }
-  .animate-scanline::after {
-    content: "";
-    position: absolute;
-    top: -100%;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.05), transparent);
-    animation: scanline 4s linear infinite;
-    pointer-events: none;
-  }
-
-  @keyframes scanline {
-    0% { top: -100%; }
-    100% { top: 200%; }
-  }
-
-  .animate-glitch {
-    animation: glitch 1s linear infinite;
-  }
-
-  @keyframes glitch {
-    2%, 64% { transform: translate(2px,0) skew(0deg); }
-    4%, 60% { transform: translate(-2px,0) skew(0deg); }
-    62% { transform: translate(0,0) skew(5deg); }
-  }
-  
-  /* Scrollbar styling for the void feel */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: oklch(0.2 0 0);
-    border-radius: 0;
+    background: oklch(0.85 0 0);
+    border-radius: 4px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: oklch(0.4 0 0);
+    background: oklch(0.7 0 0);
   }
 }

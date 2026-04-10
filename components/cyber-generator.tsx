@@ -23,16 +23,10 @@ import {
   ImageIcon,
   Download,
   Maximize2,
-  Clock,
   Trash2,
   Loader2,
-  Image as ImageIconLucide,
   Search,
   X as XIcon,
-  Copy,
-  Terminal,
-  Cpu,
-  Share2,
   ChevronLeft,
   ChevronRight,
   Star,
@@ -40,8 +34,12 @@ import {
   Package,
   ChevronsUpDown
 } from "lucide-react"
+import { Separator } from "@/components/ui/separator"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useToast } from "@/hooks/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
 import { useProviderSettings } from "@/hooks/use-provider-settings"
 import { TaskStatusPanel } from "@/components/task-status-panel"
 import { OnboardingWizard } from "@/components/onboarding-wizard"
@@ -84,95 +82,69 @@ const ResultsPanel = memo(function ResultsPanel({
 }: ResultsPanelProps) {
   if (!latestResult || latestResult.images.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center">
-        <div className="w-64 h-64 border border-border flex items-center justify-center relative animate-pulse">
-          <div className="absolute inset-0 border-t border-primary/20"></div>
-          <div className="absolute inset-0 border-b border-primary/20 transform scale-y-50"></div>
-          <Terminal className="h-16 w-16 text-primary/20" />
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center">
+        <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
+          <ImageIcon className="size-8 text-muted-foreground/50" />
         </div>
-        <p className="mt-8 font-mono text-xs tracking-[0.2em] uppercase text-muted-foreground">等待输入指令...</p>
+        <div>
+          <p className="text-lg font-medium">暂无生成结果</p>
+          <p className="text-sm text-muted-foreground mt-1">在右侧填写提示词并点击生成</p>
+        </div>
       </div>
     )
   }
 
+  const imgW = resultImageSize.width || 1024
+  const imgH = resultImageSize.height || 1024
+  const count = latestResult.images.length
+  const gridCols = count === 1 ? "grid-cols-1 max-w-3xl mx-auto" : count === 2 ? "grid-cols-2 max-w-3xl" : "grid-cols-3 max-w-4xl"
+
   return (
-    <div className="flex flex-col min-h-0">
-      <div className="flex items-center justify-between mb-4">
-        <div className="font-mono text-xs text-muted-foreground">
-          ID: {latestResult.id.slice(0, 8)} · {latestResult.provider.toUpperCase()}
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onClearResults}
-          className="h-7 text-xs border-border rounded-none font-mono hover:bg-destructive/20 hover:text-destructive hover:border-destructive transition-colors"
-        >
-          <Trash2 className="h-3 w-3 mr-2" /> 清空结果
-        </Button>
-        {latestResult.images.length >= 2 && onCompare && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs border-border rounded-none font-mono"
-            onClick={onCompare}
-          >
-            对比前两张
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {latestResult.provider.toUpperCase()} · <span className="font-mono text-xs">{latestResult.id.slice(0, 8)}</span>
+        </p>
+        <div className="flex gap-2">
+          {count >= 2 && onCompare && (
+            <Button variant="outline" size="sm" onClick={onCompare}>对比前两张</Button>
+          )}
+          <Button variant="outline" size="sm" onClick={onClearResults}>
+            <Trash2 className="size-4 mr-1.5" />清空
           </Button>
-        )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className={cn("grid gap-4 mx-auto", gridCols)}>
         {latestResult.images.map((image, idx) => (
-          <div key={idx} className="group relative bg-white border border-border overflow-hidden hover:border-primary transition-colors duration-500">
-            <div className="max-h-[70vh] overflow-auto bg-gradient-to-br from-white via-white to-muted/30">
-              <Image
-                src={image}
-                alt="Generated"
-                width={resultImageSize.width || 1024}
-                height={resultImageSize.height || 1024}
-                className="w-full h-auto block"
-                unoptimized
-              />
-            </div>
-
-            {/* Overlay UI */}
-            <div className="absolute inset-0 bg-gradient-to-t from-white/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6 pointer-events-none">
-              <div className="flex gap-3 translate-y-4 group-hover:translate-y-0 transition-transform duration-300 pointer-events-auto">
-                <Button
-                  size="icon"
-                  className="rounded-none bg-primary text-primary-foreground hover:bg-black hover:text-white"
-                  onClick={() =>
-                    onOpenImage({
-                      src: image,
-                      width: resultImageSize.width || 1024,
-                      height: resultImageSize.height || 1024,
-                      index: idx,
-                      images: latestResult.images,
-                    })
-                  }
-                >
-                  <Maximize2 className="h-4 w-4" />
+          <div key={idx} className="group relative rounded-xl overflow-hidden border bg-card shadow-sm hover:shadow-md transition-shadow">
+            <Image
+              src={image}
+              alt="Generated"
+              width={imgW}
+              height={imgH}
+              className="w-full h-auto block"
+              unoptimized
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+            <div className="absolute bottom-0 left-0 right-0 p-4 flex gap-2 justify-end opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-200">
+              <Button
+                size="icon"
+                variant="secondary"
+                className="size-9 bg-white/90 hover:bg-white text-black shadow-sm"
+                onClick={() => onOpenImage({ src: image, width: imgW, height: imgH, index: idx, images: latestResult.images })}
+              >
+                <Maximize2 className="size-4" />
+              </Button>
+              {onEdit && (
+                <Button size="icon" variant="secondary" className="size-9 bg-white/90 hover:bg-white text-black shadow-sm" onClick={() => onEdit(image)}>
+                  <Sparkles className="size-4" />
                 </Button>
-                {onEdit && (
-                  <Button
-                    size="icon"
-                    className="rounded-none border border-black text-black hover:bg-black hover:text-white"
-                    onClick={() => onEdit(image)}
-                  >
-                    <Sparkles className="h-4 w-4" />
-                  </Button>
-                )}
-                <Button size="icon" className="rounded-none border border-black text-black hover:bg-black hover:text-white" onClick={() => onDownload(image)}>
-                  <Download className="h-4 w-4" />
-                </Button>
-              </div>
+              )}
+              <Button size="icon" variant="secondary" className="size-9 bg-white/90 hover:bg-white text-black shadow-sm" onClick={() => onDownload(image)}>
+                <Download className="size-4" />
+              </Button>
             </div>
-
-            {/* Corner Accents */}
-            <div className="absolute top-2 left-2 w-2 h-2 border-t border-l border-black/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div className="absolute top-2 right-2 w-2 h-2 border-t border-r border-black/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div className="absolute bottom-2 left-2 w-2 h-2 border-b border-l border-black/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div className="absolute bottom-2 right-2 w-2 h-2 border-b border-r border-black/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
           </div>
         ))}
       </div>
@@ -212,171 +184,109 @@ const HistoryPanel = memo(function HistoryPanel({
   const isSomeSelected = selectedIds.size > 0 && !isAllSelected
 
   return (
-    <div className="border border-border bg-white/40 backdrop-blur-sm">
-      <div className="flex items-center justify-between pr-4 py-3 border-b border-border">
-        <div className="flex items-center gap-3 pl-4">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center gap-3">
           <Checkbox
-            checked={isAllSelected ? true : isSomeSelected ? 'indeterminate' : false}
+            checked={isAllSelected ? true : isSomeSelected ? "indeterminate" : false}
             onCheckedChange={(checked) => onToggleAll(Boolean(checked))}
-            className="h-4 w-4"
             aria-label="全选"
           />
-          <span className="text-xs font-mono text-muted-foreground">
-            {selectedIds.size}/{filteredHistory.length} 已选
-          </span>
+          <span className="text-sm text-muted-foreground">{selectedIds.size}/{filteredHistory.length} 已选</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex gap-2">
           {onBatchDownload && (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={selectedIds.size === 0}
-              className="rounded-none"
-              onClick={() => onBatchDownload(Array.from(selectedIds))}
-            >
-              <Package className="h-4 w-4 mr-2" />
-              批量下载
+            <Button size="sm" variant="outline" disabled={selectedIds.size === 0} onClick={() => onBatchDownload(Array.from(selectedIds))}>
+              <Package className="size-4 mr-1.5" />批量下载
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={selectedIds.size === 0}
-            className="rounded-none border-destructive text-destructive hover:bg-destructive hover:text-white"
-            onClick={onDeleteSelected}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            批量删除
+          <Button size="sm" variant="outline" disabled={selectedIds.size === 0}
+            className="text-destructive hover:text-destructive border-destructive/40 hover:border-destructive"
+            onClick={onDeleteSelected}>
+            <Trash2 className="size-4 mr-1.5" />删除
           </Button>
         </div>
       </div>
-      <Table>
-        <TableHeader className="bg-muted/20">
-          <TableRow className="border-border hover:bg-transparent">
-            <TableHead className="w-[36px] pl-4"></TableHead>
-            <TableHead className="font-mono text-xs text-primary">ID</TableHead>
-            <TableHead className="font-mono text-xs text-primary">预览</TableHead>
-            <TableHead className="font-mono text-xs text-primary">提示词</TableHead>
-            <TableHead className="font-mono text-xs text-primary text-right">操作</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredHistory.map((item) => (
-            <TableRow
-              key={item.id}
-              className="border-border hover:bg-primary/5 group cursor-pointer"
-              onClick={() => onSelectItem(item)}
-            >
-              <TableCell className="w-[36px] pl-4 align-middle" onClick={(e) => e.stopPropagation()}>
-                <Checkbox
-                  checked={selectedIds.has(item.id)}
-                  onCheckedChange={(checked) => onToggleRow(item.id, Boolean(checked))}
-                  className="h-4 w-4"
-                  aria-label={`选择 ${item.id}`}
-                />
-              </TableCell>
-              <TableCell
-                className="font-mono text-[10px] text-muted-foreground"
-                onClick={() => onSelectItem(item)}
-              >
-                {item.id.slice(0, 6)}
-              </TableCell>
-              <TableCell>
-                {item.images[0] ? (
-                  <div className="w-12 h-12 relative bg-muted group/image cursor-pointer overflow-hidden">
-                    <Image 
-                      src={item.images[0]} 
-                      alt=""
-                      fill
-                      className="object-cover transition-transform group-hover/image:scale-110"
-                      unoptimized
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onSelectItem(item)
-                      }}
-                    />
-                    {item.images.length > 1 && (
-                      <div className="absolute top-0 right-0 bg-black/60 text-white text-[10px] px-1 font-mono">
-                        +{item.images.length - 1}
-                      </div>
-                    )}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {filteredHistory.map((item) => (
+          <div
+            key={item.id}
+            className="group relative rounded-xl border bg-card p-4 hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => onSelectItem(item)}
+          >
+            <div className="absolute top-3 left-3">
+              <Checkbox
+                checked={selectedIds.has(item.id)}
+                onCheckedChange={(checked) => onToggleRow(item.id, Boolean(checked))}
+                aria-label={`选择 ${item.id}`}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+
+            {item.images[0] ? (
+              <div className="relative aspect-video rounded-md overflow-hidden bg-muted mb-3">
+                <Image src={item.images[0]} alt="" fill className="object-cover" />
+                {item.images.length > 1 && (
+                  <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded">
+                    +{item.images.length - 1}
                   </div>
-                ) : (
-                  <div className="w-12 h-12 relative bg-muted"></div>
                 )}
-              </TableCell>
-              <TableCell className="max-w-[200px]">
-                <p className="truncate font-mono text-xs text-foreground">{item.params.prompt}</p>
-                <p className="text-[10px] text-muted-foreground uppercase mt-1">
-                  {item.provider} :: {item.params.modelId}
-                </p>
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex items-center justify-end gap-1">
-                  {onToggleFavorite && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onToggleFavorite(item.id, !item.isFavorite)
-                      }}
-                      className={cn(
-                        "h-7 w-7",
-                        item.isFavorite ? "text-yellow-500 hover:text-yellow-600" : "hover:text-yellow-500"
-                      )}
-                    >
-                      <Star className={cn("h-4 w-4", item.isFavorite && "fill-current")} />
-                    </Button>
-                  )}
-                  {onRegenerate && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onRegenerate(item)
-                      }}
-                      className="h-7 w-7 hover:text-primary"
-                      title="用此参数重新生成"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {onApplyParams && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onApplyParams(item)
-                      }}
-                      className="h-7 w-7 hover:text-primary/80"
-                      title="填入表单以微调"
-                    >
-                      <ChevronsUpDown className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onDeleteItem(item.id)
-                    }}
-                    className="h-7 w-7 hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+              </div>
+            ) : (
+              <div className="aspect-video rounded-md bg-muted mb-3 flex items-center justify-center">
+                <ImageIcon className="size-8 text-muted-foreground/30" />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium line-clamp-2">{item.params.prompt || "(空提示词)"}</p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Badge variant="secondary" className="font-normal">{item.provider}</Badge>
+                {item.params.modelId && (
+                  <span className="truncate max-w-[100px]">{item.params.modelId}</span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {new Date(item.timestamp).toLocaleString("zh-CN")}
+              </p>
+            </div>
+
+            {onToggleFavorite && (
+              <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button variant="ghost" size="icon" className="size-8"
+                  onClick={(e) => { e.stopPropagation(); onToggleFavorite(item.id, !!(item.isFavorite)) }}>
+                  <Star className={cn("size-4", item.isFavorite ? "fill-amber-500 text-amber-500" : "")} />
+                </Button>
+              </div>
+            )}
+
+            <div className="absolute bottom-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {onRegenerate && (
+                <Button variant="secondary" size="icon" className="size-8"
+                  onClick={(e) => { e.stopPropagation(); onRegenerate(item) }} title="重新生成">
+                  <RotateCcw className="size-4" />
+                </Button>
+              )}
+              {onApplyParams && (
+                <Button variant="secondary" size="icon" className="size-8"
+                  onClick={(e) => { e.stopPropagation(); onApplyParams(item) }} title="填入表单">
+                  <ChevronsUpDown className="size-4" />
+                </Button>
+              )}
+              <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive"
+                onClick={(e) => { e.stopPropagation(); onDeleteItem(item.id) }}>
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {filteredHistory.length === 0 && (
-        <div className="p-12 text-center font-mono text-xs text-muted-foreground">
-          暂无生成记录
+        <div className="py-16 text-center">
+          <ImageIcon className="size-12 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">暂无生成记录</p>
         </div>
       )}
     </div>
@@ -629,7 +539,7 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
 
   const handleApplyParams = useCallback((item: GenerationResult) => {
     setInitialPrompt(item.params.prompt)
-    setInitialParams({ ...item.params, providerId: item.provider.toLowerCase() })
+    setInitialParams({ ...item.params, providerId: item.provider.toLowerCase() } as Partial<GenerationParams>)
     setMode("txt2img")
     setActiveTab("generate")
     toast({
@@ -756,314 +666,196 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
   const showOnboarding = !dismissedOnboarding && (shouldShowOnboarding || forceOnboarding)
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans overflow-hidden flex flex-col lg:flex-row">
-      {/* LEFT PANEL: CONTROLS */}
-      <aside className="w-full lg:w-[450px] flex flex-col border-r border-border bg-sidebar/50 backdrop-blur-md h-screen overflow-hidden relative z-10">
-        {/* Header */}
-        <div className="p-6 border-b border-border flex items-center justify-between bg-sidebar/80">
-            <div className="flex items-center gap-3">
-            {onBack && (
-                <Button variant="ghost" size="icon" onClick={onBack} className="hover:bg-primary/20 hover:text-primary rounded-none">
-                <ArrowLeft className="h-5 w-5" />
-                </Button>
-            )}
-            <div>
-                <h1 className="text-2xl font-mono font-black tracking-tighter text-primary glitch-text uppercase">
-                Cyber<span className="text-foreground">Gen</span>
-                </h1>
-                <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono uppercase">
-                    <span className="w-2 h-2 bg-green-500 animate-pulse rounded-full"></span>
-                    系统在线
-                </div>
-            </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  setForceOnboarding(true)
-                  setDismissedOnboarding(false)
-                }}
-                className="rounded-none hover:bg-primary/20 text-primary"
-                title="查看新手引导"
-              >
-                <Sparkles className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  setSettingsTab(undefined)
-                  setSettingsOpen(true)
-                }}
-                className="rounded-none hover:bg-primary/20 text-primary"
-                title="打开设置"
-              >
-                <Settings className="h-5 w-5" />
-              </Button>
-            </div>
+    <div className="h-screen flex flex-col bg-background">
+      {/* NAVBAR */}
+      <nav className="h-14 border-b px-6 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-8">
+          <div className="flex items-center gap-2">
+            <ImageIcon className="size-5" />
+            <span className="font-semibold text-lg">Ink</span>
+          </div>
+          <ToggleGroup
+            type="single"
+            value={mode}
+            onValueChange={(v) => v && changeMode(v as "txt2img" | "img2img")}
+            className="bg-muted/50 p-0.5"
+          >
+            <ToggleGroupItem value="txt2img" className="text-sm px-3 py-1.5">
+              文本生成
+            </ToggleGroupItem>
+            <ToggleGroupItem value="img2img" className="text-sm px-3 py-1.5">
+              图生图
+            </ToggleGroupItem>
+          </ToggleGroup>
         </div>
-
-        {/* Scrollable Form Area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
-            {/* Mode Switcher - Cyber Style */}
-            <div className="grid grid-cols-2 gap-2 p-1 bg-muted/30 border border-border">
-                <button
-                    onClick={() => changeMode("txt2img")}
-                    className={cn(
-                        "py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all duration-300",
-                        mode === "txt2img" 
-                            ? "bg-primary text-primary-foreground shadow-[0_0_10px_rgba(var(--primary),0.5)]" 
-                            : "text-muted-foreground hover:text-foreground"
-                    )}
-                >
-                    文本模式
-                </button>
-                <button
-                    onClick={() => changeMode("img2img")}
-                    className={cn(
-                        "py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all duration-300",
-                        mode === "img2img" 
-                            ? "bg-primary text-primary-foreground shadow-[0_0_10px_rgba(var(--primary),0.5)]" 
-                            : "text-muted-foreground hover:text-foreground"
-                    )}
-                >
-                    图生图
-                </button>
-            </div>
-
-            {/* Image Upload Area (kept mounted to avoid costly remounts when toggling modes) */}
-            <div
-              className={cn(
-                "border border-dashed border-primary/50 bg-primary/5 p-6 relative group transition-all hover:bg-primary/10",
-                mode === "img2img" ? "block" : "hidden"
-              )}
-            >
-              <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-primary"></div>
-              <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-primary"></div>
-              <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-primary"></div>
-              <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-primary"></div>
-              
-              <div 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex flex-col items-center justify-center cursor-pointer gap-3"
-              >
-                  <Upload className="h-8 w-8 text-primary animate-pulse" />
-                  <div className="text-center">
-                      <p className="text-xs font-mono text-primary font-bold">上传源图</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">已上传 {upload.images.length} 张</p>
-                      <p className="text-[10px] text-muted-foreground/70 mt-1">
-                        支持点击上传或 <kbd className="px-1 py-0.5 bg-muted rounded text-[9px] font-mono">Ctrl+V</kbd> 粘贴
-                      </p>
-                  </div>
-              </div>
-               <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                    if(e.target.files) addImages(Array.from(e.target.files))
-                }}
-              />
-              {/* Preview Thumbnails */}
-              {upload.images.length > 0 && (
-                  <div className="grid grid-cols-4 gap-2 mt-4">
-                      {upload.images.map((img, index) => (
-                          <div key={img.id} className="relative aspect-square border border-border bg-white group">
-                              <Image src={img.preview} alt="" fill className="object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
-                              {/* 图片编号标识 */}
-                              <div className="absolute top-0 left-0 bg-primary text-primary-foreground font-mono text-xs font-bold px-1.5 py-0.5 shadow-md">
-                                #{index + 1}
-                              </div>
-                              <button 
-                                  onClick={(e) => { e.stopPropagation(); upload.removeImage(img.id) }}
-                                  className="absolute top-0 right-0 bg-destructive text-white p-0.5 hover:bg-destructive/90 transition-colors"
-                              >
-                                  <X className="h-3 w-3" />
-                              </button>
-                          </div>
-                      ))}
-                  </div>
-              )}
-            </div>
-
-            <GenerationForm
-                mode={mode}
-                images={upload.images.map((img) => img.file)}
-                isGenerating={isGenerating}
-                onGenerate={generate}
-                onReset={handleReset}
-                resetSignal={formResetSignal}
-                initialPrompt={initialPrompt}
-                onPromptSet={() => setInitialPrompt(undefined)}
-                initialParams={initialParams}
-                onOpenSettings={(tab) => {
-                  setSettingsTab(tab)
-                  setSettingsOpen(true)
-                }}
-                onImagesChange={(files) => upload.addImages(files)}
-                onModeChange={changeMode}
-            />
+        <div className="flex items-center gap-3">
+          {queueStatus.tasks.length > 0 && (
+            <Badge variant="secondary" className="gap-1.5">
+              <Loader2 className="size-3 animate-spin" />
+              {queueStatus.tasks.length} 个任务
+            </Badge>
+          )}
+          <Button variant="ghost" size="icon" onClick={() => { setSettingsTab(undefined); setSettingsOpen(true) }}>
+            <Settings className="size-4" />
+          </Button>
         </div>
-      </aside>
+      </nav>
 
-      {/* RIGHT PANEL: VISUALIZATION */}
-      <main className="flex-1 bg-background relative overflow-hidden">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-            {/* Background Grid */}
-            <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(to_right,#e5e5e5_1px,transparent_1px),linear-gradient(to_bottom,#e5e5e5_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_70%,transparent_100%)] opacity-50"></div>
-            
-            {/* Top Bar */}
-            <div className="h-16 border-b border-border bg-background/80 backdrop-blur-sm flex items-center justify-between px-6 z-20 shrink-0">
-                <div className="flex items-center gap-4">
-                    <TabsList className="bg-transparent p-0 gap-4 h-auto">
-                        <TabsTrigger value="generate" className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 pb-2 font-mono text-xs tracking-widest">
-                            实时视图
-                        </TabsTrigger>
-                        <TabsTrigger value="history" className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 pb-2 font-mono text-xs tracking-widest">
-                            生成日志
-                        </TabsTrigger>
-                    </TabsList>
-                </div>
-                
-                {isGenerating && (
-                    <div className="flex items-center gap-2 text-primary font-mono text-xs animate-pulse">
-                        <Cpu className="h-4 w-4" />
-                        <span>正在处理...</span>
-                    </div>
-                )}
-            </div>
+      {/* MAIN CONTENT */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* CENTER CANVAS */}
+        <main className="flex-1 overflow-y-auto p-8">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="mb-6">
+              <TabsTrigger value="generate">生成结果</TabsTrigger>
+              <TabsTrigger value="history">
+                历史记录
+                {history.length > 0 && <Badge variant="secondary" className="ml-2">{history.length}</Badge>}
+              </TabsTrigger>
+            </TabsList>
 
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-8 z-10 relative">
+            <TabsContent value="generate" className="mt-0">
               {queueStatus.tasks.length > 0 && (
                 <div className="mb-6">
-                  <TaskStatusPanel
-                    tasks={queueStatus.tasks}
-                    onCancel={cancelGeneration}
-                  />
+                  <TaskStatusPanel tasks={queueStatus.tasks} onCancel={cancelGeneration} />
                 </div>
               )}
-              <TabsContent value="generate" className="m-0">
-                <ResultsPanel
-                  latestResult={latestResult}
-                  resultImageSize={resultImageSize}
-                  onClearResults={clearResults}
-                  onDownload={handleDownload}
-                  onOpenImage={handleOpenImage}
-                  onEdit={handleEditImage}
-                  onCompare={() => {
-                    if (!latestResult || latestResult.images.length < 2) return
-                    setComparisonItems([
-                      { ...latestResult, images: [latestResult.images[0]] },
-                      { ...latestResult, images: [latestResult.images[1]] },
-                    ])
-                    setComparisonOpen(true)
-                  }}
-                />
-              </TabsContent>
+              <ResultsPanel
+                latestResult={latestResult}
+                resultImageSize={resultImageSize}
+                onClearResults={clearResults}
+                onDownload={handleDownload}
+                onOpenImage={handleOpenImage}
+                onEdit={handleEditImage}
+                onCompare={() => {
+                  if (!latestResult || latestResult.images.length < 2) return
+                  setComparisonItems([
+                    { ...latestResult, images: [latestResult.images[0]] },
+                    { ...latestResult, images: [latestResult.images[1]] },
+                  ])
+                  setComparisonOpen(true)
+                }}
+              />
+            </TabsContent>
 
-              <TabsContent value="history" className="h-full m-0">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-                  <div className="text-xs text-muted-foreground font-mono space-x-2">
-                    <span>共 {history.length} 条</span>
-                    {historySearch.trim() && <span>筛选出 {filteredHistory.length} 条</span>}
-                    {selectedHistoryIds.size > 0 && (
-                      <span className="text-primary">已选 {selectedHistoryIds.size} 条</span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <div className="relative">
-                      <Input
-                        value={historySearch}
-                        onChange={(e) => setHistorySearch(e.target.value)}
-                        placeholder="搜索模型/提示词/供应商..."
-                        className="pr-8 h-9"
-                      />
-                      {historySearch && (
-                        <button
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
-                          onClick={() => setHistorySearch("")}
-                          aria-label="清空搜索"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                    <Button
-                      variant={historyFilters.favoritesOnly ? "default" : "outline"}
-                      size="sm"
-                      onClick={() =>
-                        setHistoryFilters((prev) => ({ ...prev, favoritesOnly: !prev.favoritesOnly }))
-                      }
+            <TabsContent value="history" className="mt-0">
+              <div className="flex gap-3 mb-6">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    placeholder="搜索提示词或模型..."
+                    className="pl-9"
+                  />
+                  {historySearch && (
+                    <button
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      onClick={() => setHistorySearch("")}
                     >
-                      只看收藏
-                    </Button>
-                    <Button
-                      variant={historyFilters.minRating ? "default" : "outline"}
-                      size="sm"
-                      onClick={() =>
-                        setHistoryFilters((prev) => ({
-                          ...prev,
-                          minRating: prev.minRating ? null : 4,
-                        }))
-                      }
-                    >
-                      {historyFilters.minRating ? `评分≥${historyFilters.minRating}` : "评分筛选"}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleClearAllHistory}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      清空全部
-                    </Button>
-                  </div>
+                      <XIcon className="size-4" />
+                    </button>
+                  )}
                 </div>
-                <HistoryPanel
-                  filteredHistory={filteredHistory}
-                  onSelectItem={setSelectedHistoryItem}
-                  onDeleteItem={deleteHistoryItem}
-                  selectedIds={visibleSelectedIds}
-                  onToggleRow={handleToggleRow}
-                  onToggleAll={handleToggleAll}
-                  onDeleteSelected={handleDeleteSelected}
-                  onRegenerate={handleRegenerate}
-                  onToggleFavorite={handleToggleFavorite}
-                  onBatchDownload={handleBatchDownload}
-                  onApplyParams={handleApplyParams}
-                />
-              </TabsContent>
-            </div>
-        </Tabs>
-      </main>
+                <Button
+                  variant={historyFilters.favoritesOnly ? "default" : "outline"}
+                  onClick={() => setHistoryFilters((prev) => ({ ...prev, favoritesOnly: !prev.favoritesOnly }))}
+                >
+                  <Star className="size-4 mr-1.5" />
+                  只看收藏
+                </Button>
+              </div>
+              <HistoryPanel
+                filteredHistory={filteredHistory}
+                onSelectItem={setSelectedHistoryItem}
+                onDeleteItem={deleteHistoryItem}
+                selectedIds={visibleSelectedIds}
+                onToggleRow={handleToggleRow}
+                onToggleAll={handleToggleAll}
+                onDeleteSelected={handleDeleteSelected}
+                onRegenerate={handleRegenerate}
+                onToggleFavorite={handleToggleFavorite}
+                onBatchDownload={handleBatchDownload}
+                onApplyParams={handleApplyParams}
+              />
+            </TabsContent>
+          </Tabs>
+        </main>
 
-      <SettingsDialog
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        activeTab={settingsTab}
-        onTabChange={setSettingsTab}
-      />
+        {/* RIGHT PANEL */}
+        <aside className="w-[380px] border-l flex flex-col shrink-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+            {/* Image Upload (img2img mode) */}
+            {mode === "img2img" && (
+              <div className="space-y-3">
+                <Label>上传源图</Label>
+                <div
+                  className="border border-dashed rounded-md p-6 cursor-pointer hover:bg-muted/50 transition-colors text-center"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="size-6 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm font-medium">点击上传</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    支持 <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl+V</kbd> 粘贴
+                  </p>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => { if (e.target.files) addImages(Array.from(e.target.files)) }}
+                />
+                {upload.images.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2">
+                    {upload.images.map((img, index) => (
+                      <div key={img.id} className="relative aspect-square rounded-md overflow-hidden border bg-muted">
+                        <Image src={img.preview} alt="" fill className="object-cover" />
+                        <div className="absolute top-1 left-1 bg-primary/80 text-primary-foreground text-[10px] px-1.5 py-0.5 rounded">
+                          #{index + 1}
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); upload.removeImage(img.id) }}
+                          className="absolute top-1 right-1 bg-background/90 hover:bg-background text-foreground p-0.5 rounded transition-colors"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <GenerationForm
+              mode={mode}
+              images={upload.images.map((img) => img.file)}
+              isGenerating={isGenerating}
+              onGenerate={generate}
+              onReset={handleReset}
+              resetSignal={formResetSignal}
+              initialPrompt={initialPrompt}
+              onPromptSet={() => setInitialPrompt(undefined)}
+              initialParams={initialParams}
+              onOpenSettings={(tab) => { setSettingsTab(tab); setSettingsOpen(true) }}
+              onImagesChange={(files) => upload.addImages(files)}
+              onModeChange={changeMode}
+            />
+          </div>
+        </aside>
+      </div>
+
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activeTab={settingsTab} onTabChange={setSettingsTab} />
 
       {showOnboarding && (
         <OnboardingWizard
           hasEnabledProviders={hasEnabledProviders}
           onComplete={(finalized) => {
-            if (finalized) {
-              completeOnboarding()
-            } else {
-              setDismissedOnboarding(true)
-            }
+            if (finalized) { completeOnboarding() } else { setDismissedOnboarding(true) }
             setForceOnboarding(false)
           }}
-          onOpenSettings={() => {
-            setSettingsOpen(true)
-            setSettingsTab(undefined)
-          }}
+          onOpenSettings={() => { setSettingsOpen(true); setSettingsTab(undefined) }}
           onSelectExample={(example) => {
             setInitialPrompt(example.prompt)
             setInitialParams({ prompt: example.prompt, images: undefined })
@@ -1072,251 +864,147 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
           }}
         />
       )}
-      
-      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-        <DialogContent className="max-w-screen-xl border-primary/50 bg-black/90 p-0 backdrop-blur-xl overflow-hidden outline-none" onKeyDown={(e) => {
-            if (!selectedImage || !selectedImage.images || selectedImage.images.length <= 1) return
-            if (e.key === "ArrowLeft") {
-                const newIndex = (selectedImage.index - 1 + selectedImage.images.length) % selectedImage.images.length
-                setSelectedImage({ ...selectedImage, src: selectedImage.images[newIndex], index: newIndex })
-            } else if (e.key === "ArrowRight") {
-                const newIndex = (selectedImage.index + 1) % selectedImage.images.length
-                setSelectedImage({ ...selectedImage, src: selectedImage.images[newIndex], index: newIndex })
-            }
-        }}>
-             <DialogTitle className="sr-only">预览</DialogTitle>
-             <DialogDescription className="sr-only">图片预览</DialogDescription>
-             {selectedImage && (
-                 <div className="relative w-full h-[85vh] flex items-center justify-center bg-[url('/grid.svg')] bg-repeat opacity-100">
-                     <div className="absolute inset-0 bg-black/40 pointer-events-none"></div>
-                     <Image 
-                        src={selectedImage.src} 
-                        alt="Full Preview" 
-                        width={selectedImage.width} 
-                        height={selectedImage.height}
-                        className="max-h-full max-w-full object-contain shadow-[0_0_50px_rgba(var(--primary),0.3)] relative z-10"
-                        unoptimized
-                    />
-                    
-                    {/* Top Bar */}
-                    <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent z-20">
-                        <div className="flex items-center gap-2 text-primary font-mono text-xs">
-                            <span className="w-2 h-2 bg-primary animate-pulse"></span>
-                            {selectedImage.width} x {selectedImage.height}
-                        </div>
-                        <div className="flex gap-2">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-primary hover:text-primary-foreground hover:bg-primary rounded-none border border-primary/30 h-8 w-8"
-                                onClick={() => handleDownload(selectedImage.src)}
-                            >
-                                <Download className="h-4 w-4" />
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-primary hover:text-primary-foreground hover:bg-primary rounded-none border border-primary/30 h-8 w-8"
-                                onClick={() => setSelectedImage(null)}
-                            >
-                                <X className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </div>
 
-                    {selectedImage.images && selectedImage.images.length > 1 && (
-                        <>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-none border border-primary/30 bg-black/40 hover:bg-primary/20 text-primary backdrop-blur-sm z-20 transition-all hover:scale-110"
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    const newIndex = (selectedImage.index - 1 + selectedImage.images.length) % selectedImage.images.length
-                                    setSelectedImage({ ...selectedImage, src: selectedImage.images[newIndex], index: newIndex })
-                                }}
-                            >
-                                <ChevronLeft className="h-8 w-8" />
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-none border border-primary/30 bg-black/40 hover:bg-primary/20 text-primary backdrop-blur-sm z-20 transition-all hover:scale-110"
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    const newIndex = (selectedImage.index + 1) % selectedImage.images.length
-                                    setSelectedImage({ ...selectedImage, src: selectedImage.images[newIndex], index: newIndex })
-                                }}
-                            >
-                                <ChevronRight className="h-8 w-8" />
-                            </Button>
-                            
-                            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
-                                <div className="px-4 py-1 border border-primary/30 bg-black/60 backdrop-blur-md text-primary text-xs font-mono tracking-widest uppercase">
-                                    IMG_0{selectedImage.index + 1} / 0{selectedImage.images.length}
-                                </div>
-                            </div>
-                        </>
-                    )}
-                    
-                    {/* Decorative Corners */}
-                    <div className="absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-primary pointer-events-none z-10"></div>
-                    <div className="absolute top-4 right-4 w-4 h-4 border-t-2 border-r-2 border-primary pointer-events-none z-10"></div>
-                    <div className="absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-primary pointer-events-none z-10"></div>
-                    <div className="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-primary pointer-events-none z-10"></div>
-                 </div>
-             )}
+      {/* Image Preview Dialog */}
+      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+        <DialogContent
+          className="max-w-6xl p-0 bg-black overflow-hidden"
+          onKeyDown={(e) => {
+            if (!selectedImage?.images || selectedImage.images.length <= 1) return
+            if (e.key === "ArrowLeft") {
+              const i = (selectedImage.index - 1 + selectedImage.images.length) % selectedImage.images.length
+              setSelectedImage({ ...selectedImage, src: selectedImage.images[i], index: i })
+            } else if (e.key === "ArrowRight") {
+              const i = (selectedImage.index + 1) % selectedImage.images.length
+              setSelectedImage({ ...selectedImage, src: selectedImage.images[i], index: i })
+            }
+          }}
+        >
+          <DialogTitle className="sr-only">图片预览</DialogTitle>
+          <DialogDescription className="sr-only">图片预览</DialogDescription>
+          {selectedImage && (
+            <div className="relative flex items-center justify-center bg-black min-h-[70vh]">
+              <Image
+                src={selectedImage.src}
+                alt="Full Preview"
+                width={selectedImage.width}
+                height={selectedImage.height}
+                className="max-h-[85vh] max-w-full object-contain"
+                unoptimized
+              />
+              <div className="absolute top-4 left-4">
+                <span className="text-sm text-white/60 bg-black/50 px-3 py-1.5 rounded-md">
+                  {selectedImage.width} × {selectedImage.height}
+                </span>
+              </div>
+              <div className="absolute top-4 right-4 flex gap-2">
+                <Button size="icon" variant="ghost" className="size-9 text-white/70 hover:text-white hover:bg-white/10"
+                  onClick={() => handleDownload(selectedImage.src)}>
+                  <Download className="size-5" />
+                </Button>
+                <Button size="icon" variant="ghost" className="size-9 text-white/70 hover:text-white hover:bg-white/10"
+                  onClick={() => setSelectedImage(null)}>
+                  <X className="size-5" />
+                </Button>
+              </div>
+              {selectedImage.images && selectedImage.images.length > 1 && (
+                <>
+                  <Button size="icon" variant="ghost"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 size-10 text-white/70 hover:text-white hover:bg-white/10"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const i = (selectedImage.index - 1 + selectedImage.images.length) % selectedImage.images.length
+                      setSelectedImage({ ...selectedImage, src: selectedImage.images[i], index: i })
+                    }}>
+                    <ChevronLeft className="size-6" />
+                  </Button>
+                  <Button size="icon" variant="ghost"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 size-10 text-white/70 hover:text-white hover:bg-white/10"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const i = (selectedImage.index + 1) % selectedImage.images.length
+                      setSelectedImage({ ...selectedImage, src: selectedImage.images[i], index: i })
+                    }}>
+                    <ChevronRight className="size-6" />
+                  </Button>
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-sm text-white/60 bg-black/50 px-3 py-1.5 rounded-md">
+                    {selectedImage.index + 1} / {selectedImage.images.length}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
+      {/* History Detail Dialog */}
       <Dialog open={!!selectedHistoryItem} onOpenChange={() => setSelectedHistoryItem(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogTitle className="sr-only">生成记录详情</DialogTitle>
-          <DialogDescription className="sr-only">查看选中历史记录的完整信息和所有图片</DialogDescription>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogTitle>生成记录详情</DialogTitle>
+          <DialogDescription className="sr-only">查看历史记录详情</DialogDescription>
           {selectedHistoryItem && (() => {
             const { width, height } = parseImageSize(selectedHistoryItem.params.imageSize)
             return (
-              <div className="space-y-4">
+              <div className="flex flex-col gap-5 pt-4">
                 <div>
-                  <h3 className="text-lg font-semibold">提示词</h3>
-                  <p className="text-sm text-muted-foreground">{selectedHistoryItem.params.prompt}</p>
+                  <Label className="text-xs text-muted-foreground">提示词</Label>
+                  <p className="text-sm mt-1">{selectedHistoryItem.params.prompt}</p>
                 </div>
+                <Separator />
                 <div>
-                  <h3 className="text-lg font-semibold mb-2">生成信息</h3>
-                  <div className="text-sm text-muted-foreground space-y-1">
-                    <p>提供商: {selectedHistoryItem.provider}</p>
-                    <p>模型: {selectedHistoryItem.params.modelId || "—"}</p>
-                    <p>图片数量: {selectedHistoryItem.images.length} 张</p>
-                    <p>生成时间: {new Date(selectedHistoryItem.timestamp).toLocaleString("zh-CN")}</p>
+                  <Label className="text-xs text-muted-foreground">生成信息</Label>
+                  <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+                    <span className="text-muted-foreground">提供商</span><span>{selectedHistoryItem.provider}</span>
+                    <span className="text-muted-foreground">模型</span><span className="truncate">{selectedHistoryItem.params.modelId || "—"}</span>
+                    <span className="text-muted-foreground">图片数量</span><span>{selectedHistoryItem.images.length} 张</span>
+                    <span className="text-muted-foreground">生成时间</span><span>{new Date(selectedHistoryItem.timestamp).toLocaleString("zh-CN")}</span>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleApplyParams(selectedHistoryItem)}
-                    >
-                      填入表单
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setVariantBaseParams({ ...(selectedHistoryItem.params as GenerationParams), providerId: selectedHistoryItem.provider.toLowerCase() })
-                        setVariantDialogOpen(true)
-                      }}
-                    >
-                      生成变体
-                    </Button>
+                  <div className="flex gap-2 mt-3">
+                    <Button size="sm" variant="outline" onClick={() => handleApplyParams(selectedHistoryItem)}>填入表单</Button>
+                    <Button size="sm" variant="outline" onClick={() => {
+                      setVariantBaseParams({ ...(selectedHistoryItem.params as GenerationParams), providerId: selectedHistoryItem.provider.toLowerCase() })
+                      setVariantDialogOpen(true)
+                    }}>生成变体</Button>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold">评分与标签</h4>
-                  <div className="flex items-center gap-2 flex-wrap">
+                <Separator />
+                <div>
+                  <Label className="text-xs text-muted-foreground">评分</Label>
+                  <div className="flex gap-1.5 mt-2">
                     {[1, 2, 3, 4, 5].map((n) => (
-                      <Button
-                        key={n}
-                        size="sm"
-                        variant={detailRating === n ? "default" : "outline"}
-                        onClick={() => setDetailRating(n)}
-                        className="h-8 w-8 p-0"
-                      >
+                      <Button key={n} size="sm" variant={detailRating === n ? "default" : "outline"}
+                        onClick={() => setDetailRating(n)} className="size-9 p-0">
                         {n}★
                       </Button>
                     ))}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setDetailRating(null)}
-                    >
-                      清除
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={async () => {
-                        await updateRating(selectedHistoryItem.id, detailRating)
-                        await refreshHistory()
-                        toast({ title: "已保存评分" })
-                      }}
-                    >
-                      保存评分
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Input
-                      value={detailTags}
-                      onChange={(e) => setDetailTags(e.target.value)}
-                      placeholder="添加标签，逗号分隔"
-                      className="w-64"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={async () => {
-                        const tags = detailTags
-                          .split(",")
-                          .map((t) => t.trim())
-                          .filter(Boolean)
-                        await updateTags(selectedHistoryItem.id, tags)
-                        await refreshHistory()
-                        toast({ title: "已保存标签" })
-                      }}
-                    >
-                      保存标签
-                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDetailRating(null)} className="size-9">清除</Button>
+                    <Button size="sm" onClick={async () => {
+                      await updateRating(selectedHistoryItem.id, detailRating)
+                      await refreshHistory()
+                      toast({ title: "已保存评分" })
+                    }}>保存</Button>
                   </div>
                 </div>
+                <Separator />
                 <div>
-                  <h3 className="text-lg font-semibold mb-2">所有图片 ({selectedHistoryItem.images.length})</h3>
-                  <div className={cn("grid gap-4", getGridColsClass(selectedHistoryItem.images.length))}>
+                  <Label className="text-xs text-muted-foreground">所有图片 ({selectedHistoryItem.images.length})</Label>
+                  <div className={cn("grid gap-3 mt-2", getGridColsClass(selectedHistoryItem.images.length))}>
                     {selectedHistoryItem.images.map((image, index) => (
-                      <div key={index} className="relative group/image-detail">
-                        <Image
-                          src={image || "/placeholder.svg"}
-                          alt={`生成的图片 ${index + 1}`}
-                          className="h-auto w-full rounded-lg cursor-pointer transition-transform group-hover/image-detail:scale-105"
-                          width={width}
-                          height={height}
-                          unoptimized
-                          onClick={() => {
-                            setSelectedImage({ 
-                                src: image, 
-                                width, 
-                                height,
-                                index: index,
-                                images: selectedHistoryItem.images
-                            })
-                          }}
-                        />
-                        <div className="absolute top-2 right-2 opacity-0 group-hover/image-detail:opacity-100 transition-opacity flex gap-2">
-                          <Button
-                            variant="secondary"
-                            size="icon"
-                            className="h-8 w-8 bg-black/60 hover:bg-black/80 text-white"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedImage({ 
-                                  src: image, 
-                                  width, 
-                                  height,
-                                  index: index,
-                                  images: selectedHistoryItem.images
-                              })
-                            }}
-                          >
-                            <Maximize2 className="h-4 w-4" />
+                      <div key={index} className="group relative rounded-md overflow-hidden border bg-muted">
+                        <Image src={image || "/placeholder.svg"} alt={`图片 ${index + 1}`}
+                          className="w-full h-auto cursor-pointer" width={width} height={height} unoptimized
+                          onClick={() => setSelectedImage({ src: image, width, height, index, images: selectedHistoryItem.images })} />
+                        <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="secondary" size="icon" className="size-8 bg-black/60 hover:bg-black/80 text-white border-0"
+                            onClick={(e) => { e.stopPropagation(); setSelectedImage({ src: image, width, height, index, images: selectedHistoryItem.images }) }}>
+                            <Maximize2 className="size-4" />
                           </Button>
-                          <Button
-                            variant="secondary"
-                            size="icon"
-                            className="h-8 w-8 bg-black/60 hover:bg-black/80 text-white"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDownload(image)
-                            }}
-                          >
-                            <Download className="h-4 w-4" />
+                          <Button variant="secondary" size="icon" className="size-8 bg-black/60 hover:bg-black/80 text-white border-0"
+                            onClick={(e) => { e.stopPropagation(); handleDownload(image) }}>
+                            <Download className="size-4" />
                           </Button>
                         </div>
-                        <div className="absolute left-2 top-2 rounded-md bg-black/60 px-2 py-1 text-xs font-semibold text-white">
+                        <div className="absolute top-2 left-2 text-xs text-white bg-black/60 px-2 py-0.5 rounded">
                           #{index + 1}
                         </div>
                       </div>
@@ -1332,12 +1020,9 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
       <ImageEditorDialog
         imageSrc={editingImage?.src || ""}
         open={!!editingImage}
-        onOpenChange={(open) => {
-          if (!open) setEditingImage(null)
-        }}
+        onOpenChange={(open) => { if (!open) setEditingImage(null) }}
         onSave={async (editedUrl) => {
           try {
-            // 下载裁剪后的图片到本地
             const res = await fetch(editedUrl)
             const blob = await res.blob()
             const downloadUrl = URL.createObjectURL(blob)
@@ -1348,41 +1033,23 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
             a.click()
             document.body.removeChild(a)
             URL.revokeObjectURL(downloadUrl)
-            
-            toast({ 
-              title: "保存成功", 
-              description: "裁剪后的图片已下载到本地" 
-            })
+            toast({ title: "保存成功", description: "裁剪后的图片已下载到本地" })
           } catch (error) {
             console.error(error)
-            toast({ 
-              title: "保存失败", 
-              description: "无法保存裁剪后的图片", 
-              variant: "destructive" 
-            })
+            toast({ title: "保存失败", description: "无法保存裁剪后的图片", variant: "destructive" })
           } finally {
             setEditingImage(null)
           }
         }}
       />
 
-      <ImageComparisonView
-        items={comparisonItems}
-        open={comparisonOpen}
-        onOpenChange={setComparisonOpen}
-        onDownload={handleDownload}
-      />
+      <ImageComparisonView items={comparisonItems} open={comparisonOpen} onOpenChange={setComparisonOpen} onDownload={handleDownload} />
 
       {variantBaseParams && (
         <VariantGeneratorDialog
           baseParams={variantBaseParams}
           open={variantDialogOpen}
-          onOpenChange={(open) => {
-            setVariantDialogOpen(open)
-            if (!open) {
-              setVariantBaseParams(null)
-            }
-          }}
+          onOpenChange={(open) => { setVariantDialogOpen(open); if (!open) setVariantBaseParams(null) }}
           onGenerate={async (paramsList) => {
             const providerId = (variantBaseParams as any).providerId || "fal"
             const provider = getProviderFromSettings(providerId) || getProviderFromSettings("fal") || getProviderFromSettings("newapi") || getProviderFromSettings("openrouter")

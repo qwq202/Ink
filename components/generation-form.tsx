@@ -1159,13 +1159,13 @@ export function GenerationForm({
   }
 
   return (
-    <section className="rounded-none border-0 bg-transparent p-0">
+    <section className="p-0">
       <div className="space-y-6">
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
           <div>
-            <h2 className="text-lg font-mono uppercase tracking-widest text-primary">Generation Protocols</h2>
-            <p className="text-xs font-mono text-muted-foreground">
-              {mode === "img2img" ? ">> INJECT SOURCE IMAGE" : ">> ENTER VISUAL PARAMETERS"}
+            <h2 className="text-base font-semibold">生成参数</h2>
+            <p className="text-xs text-muted-foreground">
+              {mode === "img2img" ? "编辑源图片" : "输入视觉参数"}
             </p>
           </div>
 
@@ -1173,7 +1173,7 @@ export function GenerationForm({
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 rounded-none border-border hover:bg-green-500/20 hover:text-green-600 hover:border-green-500 font-mono text-xs"
+              className="gap-2 text-xs"
               onClick={saveCurrentParams}
               title="保存当前参数配置"
             >
@@ -1186,7 +1186,7 @@ export function GenerationForm({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="gap-2 rounded-none border-border hover:bg-primary/20 hover:text-primary font-mono text-xs"
+                  className="gap-2 text-xs"
                 >
                   <Clock className="h-3 w-3" />
                   历史记录 ({history.length})
@@ -1194,7 +1194,7 @@ export function GenerationForm({
               </DialogTrigger>
               <DialogContent className="max-w-3xl max-h-[80vh]">
                 <DialogHeader>
-                  <DialogTitle className="font-mono">历史参数记录</DialogTitle>
+                  <DialogTitle>历史参数记录</DialogTitle>
                   <DialogDescription>
                     选择一条历史记录以快速恢复之前使用的参数配置
                   </DialogDescription>
@@ -1221,17 +1221,17 @@ export function GenerationForm({
                         return (
                           <div
                             key={item.id}
-                            className="group relative rounded-lg border border-border bg-card p-4 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer"
+                            className="group relative rounded-md border border-border bg-card p-4 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer"
                             onClick={() => loadHistoryParams(item)}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-2">
-                                  <Badge variant="outline" className="font-mono text-xs">
+                                  <Badge variant="outline" className="text-xs">
                                     {providerName}
                                   </Badge>
                                   {item.modelId && (
-                                    <Badge variant="secondary" className="font-mono text-xs truncate max-w-[200px]">
+                                    <Badge variant="secondary" className="text-xs truncate max-w-[200px]">
                                       {item.modelId}
                                     </Badge>
                                   )}
@@ -1372,11 +1372,9 @@ export function GenerationForm({
           <div className="grid gap-6">
           <div className="bg-card/50 p-4 border border-border backdrop-blur-sm">
             <div className="flex items-center justify-between pb-3">
-              <Label htmlFor="prompt" className="text-xs font-mono text-primary">
-                  PROMPT_INPUT
-                </Label>
+              <Label htmlFor="prompt" className="text-sm font-medium">提示词</Label>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono text-muted-foreground">{prompt.length} / 1000</span>
+                <span className="text-xs text-muted-foreground">{prompt.length} / 1000</span>
                 <Button
                   type="button"
                   variant="outline"
@@ -1432,8 +1430,8 @@ export function GenerationForm({
             </div>
             <Textarea
               id="prompt"
-              placeholder="INPUT VISUAL DATA STREAM..."
-              className="min-h-[140px] resize-none bg-background/50 border-border text-foreground font-mono text-sm focus-visible:ring-primary rounded-none"
+              placeholder="描述你想要生成的图片..."
+              className="min-h-[120px] resize-none border-border text-foreground text-sm focus-visible:ring-primary"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               maxLength={1000}
@@ -1451,17 +1449,17 @@ export function GenerationForm({
 
           <section className="bg-card/50 p-4 border border-border backdrop-blur-sm">
             <header className="flex items-center justify-between pb-4">
-              <h3 className="text-xs font-mono text-primary">MODEL_SELECTION</h3>
+              <h3 className="text-sm font-medium">模型选择</h3>
               {safeSelectedProvider === "fal" && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">{falModels.length} 个可用模型</span>
+                  <span className="text-xs text-muted-foreground">{falModels.length} 个可用模型</span>
                   {falModelsUpdatedAtLabel ? (
-                    <span className="hidden text-xs text-gray-400 sm:inline">更新于 {falModelsUpdatedAtLabel}</span>
+                    <span className="hidden text-xs text-muted-foreground sm:inline">更新于 {falModelsUpdatedAtLabel}</span>
                   ) : null}
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="gap-1 text-xs text-gray-600 hover:text-gray-900"
+                    className="gap-1 text-xs text-muted-foreground hover:text-foreground"
                     onClick={() => {
                       void refreshFalModels()
                     }}
@@ -1475,16 +1473,16 @@ export function GenerationForm({
               )}
               {safeSelectedProvider === "newapi" && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-muted-foreground">
                     {isLoadingNewApiModels ? "加载中..." : `${newapiModels.length} 个可用模型`}
                   </span>
                   {newapiModelsUpdatedAtLabel ? (
-                    <span className="hidden text-xs text-gray-400 sm:inline">更新于 {newapiModelsUpdatedAtLabel}</span>
+                    <span className="hidden text-xs text-muted-foreground sm:inline">更新于 {newapiModelsUpdatedAtLabel}</span>
                   ) : null}
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="gap-1 text-xs text-gray-600 hover:text-gray-900"
+                    className="gap-1 text-xs text-muted-foreground hover:text-foreground"
                     onClick={() => {
                       void refreshNewApiModels()
                     }}
@@ -1498,16 +1496,16 @@ export function GenerationForm({
               )}
               {safeSelectedProvider === "openrouter" && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-muted-foreground">
                     {isLoadingOpenRouterModels ? "加载中..." : `${openrouterModels.length} 个可用模型`}
                   </span>
                   {openrouterModelsUpdatedAtLabel ? (
-                    <span className="hidden text-xs text-gray-400 sm:inline">更新于 {openrouterModelsUpdatedAtLabel}</span>
+                    <span className="hidden text-xs text-muted-foreground sm:inline">更新于 {openrouterModelsUpdatedAtLabel}</span>
                   ) : null}
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="gap-1 text-xs text-gray-600 hover:text-gray-900"
+                    className="gap-1 text-xs text-muted-foreground hover:text-foreground"
                     onClick={() => {
                       if (!openrouterProvider?.apiKey) {
                         toast({
@@ -1531,7 +1529,7 @@ export function GenerationForm({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="provider" className="text-sm font-medium text-gray-900">
+                <Label htmlFor="provider" className="text-sm font-medium text-foreground">
                   AI 供应商
                 </Label>
                 <Select
@@ -1541,7 +1539,7 @@ export function GenerationForm({
                 >
                   <SelectTrigger
                     id="provider"
-                    className="h-10 w-full rounded-lg border-2 border-gray-200 bg-white px-3 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0"
+                    className="h-10 w-full px-3 text-left text-sm font-medium"
                   >
                     <SelectValue placeholder="选择供应商" />
                   </SelectTrigger>
@@ -1557,7 +1555,7 @@ export function GenerationForm({
 
               {safeSelectedProvider === "fal" ? (
                 <div className="space-y-2">
-                  <Label htmlFor="fal-model" className="text-sm font-medium text-gray-900">
+                  <Label htmlFor="fal-model" className="text-sm font-medium text-foreground">
                     FAL 模型
                   </Label>
                   <Popover open={isFalModelPopoverOpen} onOpenChange={setIsFalModelPopoverOpen}>
@@ -1567,20 +1565,20 @@ export function GenerationForm({
                         variant="outline"
                         role="combobox"
                         aria-expanded={isFalModelPopoverOpen}
-                        className="flex h-10 w-full min-w-0 items-center justify-between gap-4 rounded-lg border-2 border-gray-200 bg-white px-3 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-10 w-full min-w-0 items-center justify-between gap-4 px-3 text-left text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <span className="text-left truncate" title={falModelButtonLabel}>
                           {falModelButtonLabel}
                         </span>
-                        <ChevronsUpDown className="h-4 w-4 text-gray-500" />
+                        <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[400px] p-0 shadow-lg" align="start">
                       <Command
                         loop
-                        className="rounded-lg border-2 border-gray-200"
+                        className="rounded-md border border-border"
                       >
-                        <div className="border-b border-gray-100 px-3 py-2">
+                        <div className="border-b border-border px-3 py-2">
                           <CommandInput 
                             placeholder="搜索模型名称或 ID…" 
                             className="border-none focus:ring-0"
@@ -1590,12 +1588,12 @@ export function GenerationForm({
                         </div>
                         <CommandList ref={falListRef} className="max-h-80 overflow-y-auto p-2">
                           {isLoadingFalModels && !hasFalModels ? (
-                            <div className="py-8 text-center text-sm text-gray-500">
+                            <div className="py-8 text-center text-sm text-muted-foreground">
                               <div className="mb-2">正在加载模型列表…</div>
                             </div>
                           ) : (
                             <>
-                              <CommandEmpty className="py-8 text-center text-sm text-gray-500">
+                              <CommandEmpty className="py-8 text-center text-sm text-muted-foreground">
                                 未找到匹配的模型
                               </CommandEmpty>
                               <CommandGroup>
@@ -1608,18 +1606,18 @@ export function GenerationForm({
                                       setIsFalModelPopoverOpen(false)
                                     }}
                                     className={cn(
-                                      "mb-1 cursor-pointer rounded-lg border-2 border-transparent px-3 py-3 transition-all",
-                                      "hover:border-gray-200 hover:bg-gray-50",
-                                      "aria-selected:border-gray-300 aria-selected:bg-gray-50",
-                                      selectedFalModel === model.id && "border-gray-900 bg-gray-50"
+                                      "mb-1 cursor-pointer rounded-md border border-transparent px-3 py-3 transition-all",
+                                      "hover:border-border hover:bg-muted/50",
+                                      "aria-selected:border-primary/30 aria-selected:bg-muted/50",
+                                      selectedFalModel === model.id && "border-primary bg-muted/50"
                                     )}
                                   >
                                     <div className="flex flex-1 flex-col gap-0.5">
-                                      <span className="text-sm font-semibold text-gray-900">{model.title}</span>
-                                      <span className="text-xs text-gray-500">{model.id}</span>
+                                      <span className="text-sm font-semibold text-foreground">{model.title}</span>
+                                      <span className="text-xs text-muted-foreground">{model.id}</span>
                                     </div>
                                     {selectedFalModel === model.id ? (
-                                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-900">
+                                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
                                         <Check className="h-3 w-3 text-white" />
                                       </div>
                                     ) : null}
@@ -1640,10 +1638,10 @@ export function GenerationForm({
                 <>
                   <div className="sm:col-span-2 w-full">
                     <div className="border-l-4 border-primary bg-primary/10 px-4 py-3 rounded">
-                      <p className="text-sm text-gray-900 font-medium">
+                      <p className="text-sm text-foreground font-medium">
                         Nano Banana Pro (Gemini 3 Pro Image) {mode === "img2img" && "· 编辑模式"}
                       </p>
-                      <p className="text-xs text-gray-600 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         {mode === "img2img" 
                           ? "专业的图片编辑模型，支持基于原图进行精准修改和风格转换" 
                           : "Google 最新的图片生成模型，支持自定义宽高比、分辨率和输出格式"
@@ -1653,7 +1651,7 @@ export function GenerationForm({
                   </div>
                   <div className="sm:col-span-2 grid gap-4 grid-cols-1 md:grid-cols-3 w-full">
                     <div className="space-y-2">
-                    <Label htmlFor="fal-nano-aspect" className="text-sm font-medium text-gray-900">
+                    <Label htmlFor="fal-nano-aspect" className="text-sm font-medium text-foreground">
                       {mode === "img2img" ? "输出宽高比" : "宽高比"}
                     </Label>
                     <Select
@@ -1671,13 +1669,13 @@ export function GenerationForm({
                       </SelectContent>
                     </Select>
                     {mode === "img2img" && (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted-foreground">
                         选择 auto 保持原图比例，或指定新的宽高比
                       </p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="fal-nano-resolution" className="text-sm font-medium text-gray-900">
+                    <Label htmlFor="fal-nano-resolution" className="text-sm font-medium text-foreground">
                       {mode === "img2img" ? "输出分辨率" : "分辨率"}
                     </Label>
                     <Select
@@ -1693,12 +1691,12 @@ export function GenerationForm({
                         <SelectItem value="1K">1K - 快速{mode === "img2img" ? "编辑" : "生成"}</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       提示：4K 分辨率需要较长时间，建议先尝试 2K
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="fal-nano-format" className="text-sm font-medium text-gray-900">
+                    <Label htmlFor="fal-nano-format" className="text-sm font-medium text-foreground">
                       输出格式
                     </Label>
                     <Select
@@ -1724,10 +1722,10 @@ export function GenerationForm({
                 <>
                   <div className="sm:col-span-2 w-full">
                     <div className="border-l-4 border-primary bg-primary/10 px-4 py-3 rounded">
-                      <p className="text-sm text-gray-900 font-medium">
+                      <p className="text-sm text-foreground font-medium">
                         Gemini 3 Pro Image Preview (Nano Banana 2) {mode === "img2img" && "· 编辑模式"}
                       </p>
-                      <p className="text-xs text-gray-600 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         {mode === "img2img" 
                           ? "强大的图片编辑模型，支持精准的图像修改和创意转换" 
                           : "Google 最新一代图片生成模型，具备更强的理解能力和更高的生成质量"
@@ -1737,7 +1735,7 @@ export function GenerationForm({
                   </div>
                   <div className="sm:col-span-2 grid gap-4 grid-cols-1 md:grid-cols-3 w-full">
                     <div className="space-y-2">
-                    <Label htmlFor="fal-g3p-aspect" className="text-sm font-medium text-gray-900">
+                    <Label htmlFor="fal-g3p-aspect" className="text-sm font-medium text-foreground">
                       {mode === "img2img" ? "输出宽高比" : "宽高比"}
                     </Label>
                     <Select
@@ -1755,13 +1753,13 @@ export function GenerationForm({
                       </SelectContent>
                     </Select>
                     {mode === "img2img" && (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted-foreground">
                         选择 auto 保持原图比例，或指定新的宽高比
                       </p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="fal-g3p-resolution" className="text-sm font-medium text-gray-900">
+                    <Label htmlFor="fal-g3p-resolution" className="text-sm font-medium text-foreground">
                       {mode === "img2img" ? "输出分辨率" : "分辨率"}
                     </Label>
                     <Select
@@ -1777,12 +1775,12 @@ export function GenerationForm({
                         <SelectItem value="1K">1K - 快速{mode === "img2img" ? "编辑" : "生成"}</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       提示：4K 分辨率需要较长时间，建议先尝试 2K
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="fal-g3p-format" className="text-sm font-medium text-gray-900">
+                    <Label htmlFor="fal-g3p-format" className="text-sm font-medium text-foreground">
                       输出格式
                     </Label>
                     <Select
@@ -1805,7 +1803,7 @@ export function GenerationForm({
               
               {safeSelectedProvider === "newapi" ? (
                 <div className="space-y-2">
-                  <Label htmlFor="newapi-model" className="text-sm font-medium text-gray-900">
+                  <Label htmlFor="newapi-model" className="text-sm font-medium text-foreground">
                     NewAPI 模型
                   </Label>
                   <Popover open={isNewapiModelPopoverOpen} onOpenChange={setIsNewapiModelPopoverOpen}>
@@ -1815,20 +1813,20 @@ export function GenerationForm({
                         variant="outline"
                         role="combobox"
                         aria-expanded={isNewapiModelPopoverOpen}
-                        className="flex h-10 w-full min-w-0 items-center justify-between gap-4 rounded-lg border-2 border-gray-200 bg-white px-3 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-10 w-full min-w-0 items-center justify-between gap-4 px-3 text-left text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <span className="text-left truncate" title={newapiModelButtonLabel}>
                           {newapiModelButtonLabel}
                         </span>
-                        <ChevronsUpDown className="h-4 w-4 text-gray-500" />
+                        <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[400px] p-0 shadow-lg" align="start">
                       <Command
                         loop
-                        className="rounded-lg border-2 border-gray-200"
+                        className="rounded-md border border-border"
                       >
-                        <div className="border-b border-gray-100 px-3 py-2">
+                        <div className="border-b border-border px-3 py-2">
                           <CommandInput 
                             placeholder="搜索模型名称或渠道…" 
                             className="border-none focus:ring-0"
@@ -1838,12 +1836,12 @@ export function GenerationForm({
                         </div>
                         <CommandList ref={newapiListRef} className="max-h-80 overflow-y-auto p-2">
                           {isLoadingNewApiModels && !hasNewapiModels ? (
-                            <div className="py-8 text-center text-sm text-gray-500">
+                            <div className="py-8 text-center text-sm text-muted-foreground">
                               <div className="mb-2">正在加载模型列表…</div>
                             </div>
                           ) : (
                             <>
-                              <CommandEmpty className="py-8 text-center text-sm text-gray-500">
+                              <CommandEmpty className="py-8 text-center text-sm text-muted-foreground">
                                 未找到匹配的模型
                               </CommandEmpty>
                               <CommandGroup>
@@ -1857,23 +1855,23 @@ export function GenerationForm({
                                         setIsNewapiModelPopoverOpen(false)
                                       }}
                                      className={cn(
-                                       "mb-1 cursor-pointer rounded-lg border-2 border-transparent px-3 py-3 transition-all",
-                                       "hover:border-gray-200 hover:bg-gray-50",
-                                       "aria-selected:border-gray-300 aria-selected:bg-gray-50",
-                                       selectedNewapiModel === model.id && "border-gray-900 bg-gray-50"
+                                       "mb-1 cursor-pointer rounded-md border border-transparent px-3 py-3 transition-all",
+                                       "hover:border-border hover:bg-muted/50",
+                                       "aria-selected:border-primary/30 aria-selected:bg-muted/50",
+                                       selectedNewapiModel === model.id && "border-primary bg-muted/50"
                                      )}
                                    >
                                      <div className="flex flex-1 flex-col gap-0.5">
-                                       <span className="text-sm font-semibold text-gray-900">{model.id}</span>
+                                       <span className="text-sm font-semibold text-foreground">{model.id}</span>
                                        {model.channel && model.channel !== "default" && (
-                                         <span className="text-xs text-gray-500">渠道：{model.channel}</span>
+                                         <span className="text-xs text-muted-foreground">渠道：{model.channel}</span>
                                        )}
                                         {model.id.toLowerCase().startsWith("gemini") && (
                                           <span className="text-[10px] text-amber-600">Gemini 模型</span>
                                         )}
                                      </div>
                                      {selectedNewapiModel === model.id ? (
-                                       <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-900">
+                                       <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
                                          <Check className="h-3 w-3 text-white" />
                                        </div>
                                      ) : null}
@@ -1890,18 +1888,18 @@ export function GenerationForm({
                                           setIsNewapiModelPopoverOpen(false)
                                         }}
                                         className={cn(
-                                          "mb-1 cursor-pointer rounded-lg border-2 border-transparent px-3 py-3 transition-all",
-                                          "hover:border-gray-200 hover:bg-gray-50",
-                                          "aria-selected:border-gray-300 aria-selected:bg-gray-50",
-                                          selectedNewapiModel === modelId && "border-gray-900 bg-gray-50"
+                                          "mb-1 cursor-pointer rounded-md border border-transparent px-3 py-3 transition-all",
+                                          "hover:border-border hover:bg-muted/50",
+                                          "aria-selected:border-primary/30 aria-selected:bg-muted/50",
+                                          selectedNewapiModel === modelId && "border-primary bg-muted/50"
                                         )}
                                       >
                                         <div className="flex flex-1 flex-col gap-0.5">
-                                          <span className="text-sm font-semibold text-gray-900">{modelId}</span>
-                                          <span className="text-xs text-gray-500">默认模型</span>
+                                          <span className="text-sm font-semibold text-foreground">{modelId}</span>
+                                          <span className="text-xs text-muted-foreground">默认模型</span>
                                         </div>
                                         {selectedNewapiModel === modelId ? (
-                                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-900">
+                                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
                                             <Check className="h-3 w-3 text-white" />
                                           </div>
                                         ) : null}
@@ -1922,7 +1920,7 @@ export function GenerationForm({
               {safeSelectedProvider === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini") && (
                 <div className="sm:col-span-2 grid gap-4 grid-cols-1 md:grid-cols-3 w-full">
                   <div className="space-y-2">
-                    <Label htmlFor="gemini-thinking" className="text-sm font-medium text-gray-900">
+                    <Label htmlFor="gemini-thinking" className="text-sm font-medium text-foreground">
                       思考等级
                     </Label>
                     <Select
@@ -1939,7 +1937,7 @@ export function GenerationForm({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="gemini-resolution" className="text-sm font-medium text-gray-900">
+                    <Label htmlFor="gemini-resolution" className="text-sm font-medium text-foreground">
                       媒体分辨率
                     </Label>
                     <Select
@@ -1955,12 +1953,12 @@ export function GenerationForm({
                         <SelectItem value="media_resolution_low">低 1K（速度优先）</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       提示：4K 分辨率可能需要较长时间，建议先尝试 2K
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="gemini-aspect" className="text-sm font-medium text-gray-900">
+                    <Label htmlFor="gemini-aspect" className="text-sm font-medium text-foreground">
                       宽高比
                     </Label>
                     <Select
@@ -1982,7 +1980,7 @@ export function GenerationForm({
 
               {safeSelectedProvider === "openrouter" ? (
                 <div className="space-y-2">
-                  <Label htmlFor="openrouter-model" className="text-sm font-medium text-gray-900">
+                  <Label htmlFor="openrouter-model" className="text-sm font-medium text-foreground">
                     OpenRouter 模型
                   </Label>
                   <Popover open={isOpenRouterModelPopoverOpen} onOpenChange={setIsOpenRouterModelPopoverOpen}>
@@ -1992,20 +1990,20 @@ export function GenerationForm({
                         variant="outline"
                         role="combobox"
                         aria-expanded={isOpenRouterModelPopoverOpen}
-                        className="flex h-10 w-full min-w-0 items-center justify-between gap-4 rounded-lg border-2 border-gray-200 bg-white px-3 text-left text-sm font-medium text-gray-900 hover:border-gray-300 focus-visible:border-gray-900 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-10 w-full min-w-0 items-center justify-between gap-4 px-3 text-left text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <span className="text-left truncate" title={openrouterModelButtonLabel}>
                           {openrouterModelButtonLabel}
                         </span>
-                        <ChevronsUpDown className="h-4 w-4 text-gray-500" />
+                        <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[400px] p-0 shadow-lg" align="start">
                       <Command
                         loop
-                        className="rounded-lg border-2 border-gray-200"
+                        className="rounded-md border border-border"
                       >
-                        <div className="border-b border-gray-100 px-3 py-2">
+                        <div className="border-b border-border px-3 py-2">
                           <CommandInput 
                             placeholder="搜索模型名称…" 
                             className="border-none focus:ring-0"
@@ -2015,12 +2013,12 @@ export function GenerationForm({
                         </div>
                         <CommandList ref={openrouterListRef} className="max-h-80 overflow-y-auto p-2">
                           {isLoadingOpenRouterModels && !hasOpenRouterModels ? (
-                            <div className="py-8 text-center text-sm text-gray-500">
+                            <div className="py-8 text-center text-sm text-muted-foreground">
                               <div className="mb-2">正在加载模型列表…</div>
                             </div>
                           ) : (
                             <>
-                              <CommandEmpty className="py-8 text-center text-sm text-gray-500">
+                              <CommandEmpty className="py-8 text-center text-sm text-muted-foreground">
                                 未找到匹配的模型
                               </CommandEmpty>
                               <CommandGroup>
@@ -2033,21 +2031,21 @@ export function GenerationForm({
                                       setIsOpenRouterModelPopoverOpen(false)
                                     }}
                                     className={cn(
-                                      "mb-1 cursor-pointer rounded-lg border-2 border-transparent px-3 py-3 transition-all",
-                                      "hover:border-gray-200 hover:bg-gray-50",
-                                      "aria-selected:border-gray-300 aria-selected:bg-gray-50",
-                                      selectedOpenRouterModel === model.id && "border-gray-900 bg-gray-50"
+                                      "mb-1 cursor-pointer rounded-md border border-transparent px-3 py-3 transition-all",
+                                      "hover:border-border hover:bg-muted/50",
+                                      "aria-selected:border-primary/30 aria-selected:bg-muted/50",
+                                      selectedOpenRouterModel === model.id && "border-primary bg-muted/50"
                                     )}
                                   >
                                     <div className="flex flex-1 flex-col gap-0.5">
-                                      <span className="text-sm font-semibold text-gray-900">{model.name || model.id}</span>
-                                      <span className="text-xs text-gray-500">{model.id}</span>
+                                      <span className="text-sm font-semibold text-foreground">{model.name || model.id}</span>
+                                      <span className="text-xs text-muted-foreground">{model.id}</span>
                                       {model.owned_by && (
-                                        <span className="text-xs text-gray-400">提供商：{model.owned_by}</span>
+                                        <span className="text-xs text-muted-foreground">提供商：{model.owned_by}</span>
                                       )}
                                     </div>
                                     {selectedOpenRouterModel === model.id ? (
-                                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-900">
+                                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
                                         <Check className="h-3 w-3 text-white" />
                                       </div>
                                     ) : null}
@@ -2065,7 +2063,7 @@ export function GenerationForm({
 
               {safeSelectedProvider === "gemini" ? (
                 <div className="space-y-2">
-                  <Label htmlFor="gemini-model" className="text-sm font-medium text-gray-900">
+                  <Label htmlFor="gemini-model" className="text-sm font-medium text-foreground">
                     Gemini 模型
                   </Label>
                   <Select value={selectedGeminiModel} onValueChange={setSelectedGeminiModel}>
@@ -2077,13 +2075,13 @@ export function GenerationForm({
                         <SelectItem key={model.id} value={model.id}>
                           <div className="flex flex-col gap-0.5">
                             <span className="font-medium">{model.name}</span>
-                            <span className="text-xs text-gray-500">{model.description}</span>
+                            <span className="text-xs text-muted-foreground">{model.description}</span>
                           </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     Flash: 快速高效，1K 分辨率 | Pro: 高级模型，支持 4K 和深度思考
                   </p>
                 </div>
@@ -2093,7 +2091,7 @@ export function GenerationForm({
                 <div className="sm:col-span-2 grid gap-4 grid-cols-1 md:grid-cols-3 w-full">
                   {selectedGeminiModel.includes("pro") && (
                     <div className="space-y-2">
-                      <Label htmlFor="gemini-thinking-level" className="text-sm font-medium text-gray-900">
+                      <Label htmlFor="gemini-thinking-level" className="text-sm font-medium text-foreground">
                         思考等级
                       </Label>
                       <Select
@@ -2111,7 +2109,7 @@ export function GenerationForm({
                     </div>
                   )}
                   <div className="space-y-2">
-                    <Label htmlFor="gemini-media-resolution" className="text-sm font-medium text-gray-900">
+                    <Label htmlFor="gemini-media-resolution" className="text-sm font-medium text-foreground">
                       媒体分辨率
                     </Label>
                     <Select
@@ -2127,12 +2125,12 @@ export function GenerationForm({
                         <SelectItem value="media_resolution_low">低 1K（速度优先）</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       提示：4K 分辨率可能需要较长时间，建议先尝试 2K
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="gemini-aspect-ratio" className="text-sm font-medium text-gray-900">
+                    <Label htmlFor="gemini-aspect-ratio" className="text-sm font-medium text-foreground">
                       宽高比
                     </Label>
                     <Select
@@ -2154,9 +2152,9 @@ export function GenerationForm({
             </div>
             
             {safeSelectedProvider === "newapi" ? (
-              <div className="mt-4 grid gap-4 border-t border-gray-100 pt-4 sm:grid-cols-2">
+              <div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="newapi-quality" className="text-sm font-medium text-gray-900">
+                  <Label htmlFor="newapi-quality" className="text-sm font-medium text-foreground">
                     图片质量
                   </Label>
                   <Select
@@ -2188,7 +2186,7 @@ export function GenerationForm({
                 
                 {selectedNewapiModel === "dall-e-3" ? (
                   <div className="space-y-2">
-                    <Label htmlFor="newapi-style" className="text-sm font-medium text-gray-900">
+                    <Label htmlFor="newapi-style" className="text-sm font-medium text-foreground">
                       图片风格
                     </Label>
                     <Select
@@ -2203,7 +2201,7 @@ export function GenerationForm({
                         <SelectItem value="natural">自然真实</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       鲜艳适合创意设计，自然适合写实场景
                     </p>
                   </div>
@@ -2212,15 +2210,15 @@ export function GenerationForm({
             ) : null}
           </section>
       
-          <section className="rounded-lg border border-gray-200 bg-white p-4">
+          <section className="rounded-md border border-border bg-background p-4">
             <header className="pb-4">
-              <h3 className="text-sm font-semibold text-gray-900">图片参数</h3>
+              <h3 className="text-sm font-semibold text-foreground">图片参数</h3>
             </header>
 
             <div className="grid gap-4 sm:grid-cols-2">
               {!isNanoBananaProSelected && !isGemini3ProPreviewSelected && (
                 <div className="space-y-2">
-                  <Label htmlFor="size" className="text-sm font-medium text-gray-900">
+                  <Label htmlFor="size" className="text-sm font-medium text-foreground">
                     图片尺寸
                   </Label>
                   <Select
@@ -2271,7 +2269,7 @@ export function GenerationForm({
                             : ""
                         }`}
                       />
-                      <span className="text-sm text-gray-500 text-center">x</span>
+                      <span className="text-sm text-muted-foreground text-center">x</span>
                       <Input
                         type="number"
                         min={64}
@@ -2302,7 +2300,7 @@ export function GenerationForm({
                         {customApplyState === "success" ? "已应用" : "应用"}
                       </Button>
                     </div>
-                    <p className="text-xs text-gray-500">64 - 4096 正整数，例如 1400 x 900</p>
+                    <p className="text-xs text-muted-foreground">64 - 4096 正整数，例如 1400 x 900</p>
                     <p
                       role="status"
                       className={`text-xs ${
@@ -2310,7 +2308,7 @@ export function GenerationForm({
                           ? customSizeFeedback.type === "success"
                             ? "text-green-600 font-semibold"
                             : "text-rose-600 font-semibold"
-                          : "text-gray-500"
+                          : "text-muted-foreground"
                       }`}
                     >
                       {customSizeFeedback ? customSizeFeedback.message : ""}
@@ -2321,7 +2319,7 @@ export function GenerationForm({
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="num_images" className="text-sm font-medium text-gray-900">
+                <Label htmlFor="num_images" className="text-sm font-medium text-foreground">
                   生成数量
                 </Label>
                 <Input
@@ -2339,7 +2337,7 @@ export function GenerationForm({
               </div>
 
               <div className="flex items-center justify-between sm:col-span-2 pt-2">
-                <p className="text-sm font-medium text-gray-900">高级设置</p>
+                <p className="text-sm font-medium text-foreground">高级设置</p>
                 <Button variant="outline" size="sm" onClick={() => setShowAdvanced((v) => !v)}>
                   {showAdvanced ? "收起" : "展开"}
                 </Button>
@@ -2348,8 +2346,8 @@ export function GenerationForm({
               {showAdvanced && (
                 <>
                   <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="seed" className="text-sm font-medium text-gray-900">
-                      随机种子 <span className="text-xs text-gray-500">（可选）</span>
+                    <Label htmlFor="seed" className="text-sm font-medium text-foreground">
+                      随机种子 <span className="text-xs text-muted-foreground">（可选）</span>
                     </Label>
                     <Input
                       id="seed"
@@ -2365,24 +2363,24 @@ export function GenerationForm({
           </section>
 
           {showAdvanced && (
-            <section className="rounded-lg border border-gray-200 bg-white p-4">
+            <section className="rounded-md border border-border bg-background p-4">
               <header className="pb-4">
-                <h3 className="text-sm font-semibold text-gray-900">高级选项</h3>
+                <h3 className="text-sm font-semibold text-foreground">高级选项</h3>
               </header>
 
               <div className="grid gap-3">
-                <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                <div className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-4 py-3">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">安全检查</p>
-                    <p className="text-xs text-gray-600">启用内容安全过滤，确保生成内容合规</p>
+                    <p className="text-sm font-medium text-foreground">安全检查</p>
+                    <p className="text-xs text-muted-foreground">启用内容安全过滤，确保生成内容合规</p>
                   </div>
                   <Switch id="safety" checked={safetyChecker} onCheckedChange={setSafetyChecker} />
                 </div>
 
-                <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                <div className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-4 py-3">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">同步模式</p>
-                    <p className="text-xs text-gray-600">等待生成完成后再返回结果</p>
+                    <p className="text-sm font-medium text-foreground">同步模式</p>
+                    <p className="text-xs text-muted-foreground">等待生成完成后再返回结果</p>
                   </div>
                   <Switch id="sync" checked={syncMode} onCheckedChange={setSyncMode} />
                 </div>
@@ -2392,13 +2390,13 @@ export function GenerationForm({
         </div>
 
         <Button
-          className="flex w-full items-center justify-center gap-2 rounded-none bg-primary py-6 text-base font-mono font-bold text-primary-foreground hover:bg-primary/80 hover:shadow-[0_0_20px_rgba(var(--primary),0.5)] disabled:opacity-60 transition-all duration-300 neon-border"
+          className="w-full"
           size="lg"
           onClick={handleGenerate}
           disabled={isGenerating}
         >
           <Wand2 className={`h-5 w-5 ${isGenerating ? "animate-spin" : ""}`} />
-          {isGenerating ? "PROCESSING_DATA..." : "INITIALIZE_GENERATION"}
+          {isGenerating ? "生成中..." : "开始生成"}
         </Button>
       </div>
 

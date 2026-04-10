@@ -14,11 +14,11 @@ function Checkbox({
     <CheckboxPrimitive.Root
       data-slot="checkbox"
       className={cn(
-        'peer size-4 shrink-0 rounded-md border-2 border-gray-300 bg-white transition-all outline-none',
-        'hover:border-gray-500 hover:bg-gray-50',
-        'focus-visible:border-gray-900 focus-visible:ring-2 focus-visible:ring-gray-200 focus-visible:ring-offset-1',
-        'data-[state=checked]:border-gray-900 data-[state=checked]:bg-gray-900 data-[state=checked]:text-white',
-        'data-[state=indeterminate]:border-gray-900 data-[state=indeterminate]:bg-gray-900 data-[state=indeterminate]:text-white',
+        'peer size-4 shrink-0 rounded-md border border-input bg-background transition-all outline-none',
+        'hover:border-ring hover:bg-accent',
+        'focus-visible:border-ring focus-visible:ring-ring/20 focus-visible:ring-2 focus-visible:ring-offset-1',
+        'data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground',
+        'data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground',
         'disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}

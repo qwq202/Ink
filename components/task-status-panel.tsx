@@ -2,7 +2,6 @@
 
 import React, { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
@@ -53,11 +52,11 @@ export function TaskStatusPanel({ tasks, onCancel, className }: TaskStatusPanelP
 
   const TaskItem = ({ task }: { task: Task }) => {
     const statusConfig = {
-      running: { icon: Loader2, color: "text-blue-500", bg: "bg-blue-50", label: "生成中" },
-      pending: { icon: Clock, color: "text-gray-500", bg: "bg-gray-50", label: "排队中" },
-      completed: { icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50", label: "已完成" },
-      failed: { icon: XCircle, color: "text-red-500", bg: "bg-red-50", label: "失败" },
-      cancelled: { icon: XCircle, color: "text-gray-400", bg: "bg-gray-50", label: "已取消" },
+      running: { icon: Loader2, color: "text-primary", bg: "bg-primary/5", label: "生成中" },
+      pending: { icon: Clock, color: "text-muted-foreground", bg: "bg-muted/30", label: "排队中" },
+      completed: { icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50", label: "已完成" },
+      failed: { icon: XCircle, color: "text-destructive", bg: "bg-destructive/5", label: "失败" },
+      cancelled: { icon: XCircle, color: "text-muted-foreground", bg: "bg-muted/30", label: "已取消" },
     }
 
     const config = statusConfig[task.status] || statusConfig.pending
@@ -70,7 +69,7 @@ export function TaskStatusPanel({ tasks, onCancel, className }: TaskStatusPanelP
         <Icon className={cn("h-5 w-5", config.color, task.status === "running" && "animate-spin")} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <p className="text-sm font-medium text-gray-900 truncate">{task.name}</p>
+            <p className="text-sm font-medium text-foreground truncate">{task.name}</p>
             <Badge variant="outline" className="text-xs">
               {config.label}
             </Badge>
@@ -83,16 +82,16 @@ export function TaskStatusPanel({ tasks, onCancel, className }: TaskStatusPanelP
           {task.status === "running" && (
             <div className="space-y-1">
               <Progress value={undefined} className="h-1.5 animate-pulse" />
-              <p className="text-xs text-gray-500">预计耗时 20-40 秒，具体取决于模型与队列</p>
+              <p className="text-xs text-muted-foreground">预计耗时 20-40 秒，具体取决于模型与队列</p>
             </div>
           )}
           {task.status === "failed" && task.error && (
-            <p className="text-xs text-red-600 mt-1 truncate" title={task.error}>
+            <p className="text-xs text-destructive mt-1 truncate" title={task.error}>
               {task.error}
             </p>
           )}
           {task.status === "completed" && task.startedAt && task.completedAt && (
-            <p className="text-xs text-gray-500 mt-1">耗时: {formatTime(task.completedAt - task.startedAt)}</p>
+            <p className="text-xs text-muted-foreground mt-1">耗时: {formatTime(task.completedAt - task.startedAt)}</p>
           )}
         </div>
         {canCancel && (
@@ -117,18 +116,16 @@ export function TaskStatusPanel({ tasks, onCancel, className }: TaskStatusPanelP
 
   return (
     <>
-      <Card className={className}>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium">任务状态</CardTitle>
-            {hasActiveTasks && (
-              <Badge variant="outline" className="text-xs">
-                {groupedTasks.running.length} 运行中 / {groupedTasks.pending.length} 排队中
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-2">
+      <div className={cn("border rounded-md bg-card p-4", className)}>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-medium">任务状态</p>
+          {hasActiveTasks && (
+            <Badge variant="outline" className="text-xs">
+              {groupedTasks.running.length} 运行中 / {groupedTasks.pending.length} 排队中
+            </Badge>
+          )}
+        </div>
+        <div className="space-y-2">
           {groupedTasks.running.length > 0 && (
             <div className="space-y-2">
               {groupedTasks.running.map((task) => (
@@ -157,8 +154,8 @@ export function TaskStatusPanel({ tasks, onCancel, className }: TaskStatusPanelP
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <AlertDialog open={cancelTaskId !== null} onOpenChange={(open) => !open && setCancelTaskId(null)}>
         <AlertDialogContent>

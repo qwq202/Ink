@@ -270,10 +270,10 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-card text-foreground border-border rounded-none backdrop-blur-xl">
+      <DialogContent className="max-w-2xl bg-card text-foreground border-border">
         <DialogHeader>
-          <DialogTitle className="text-foreground font-mono uppercase tracking-widest">设置协议</DialogTitle>
-          <DialogDescription className="text-muted-foreground font-mono text-xs">配置各 AI 服务的连接与密钥</DialogDescription>
+          <DialogTitle>设置</DialogTitle>
+          <DialogDescription>配置各 AI 服务的连接与密钥</DialogDescription>
         </DialogHeader>
 
         <div className="mt-4 space-y-6">
@@ -285,25 +285,25 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
             }}
             className="space-y-2"
           >
-            <TabsList className="flex w-full bg-muted border-border rounded-none p-0">
-              <TabsTrigger value="fal" className="flex-1 rounded-none data-[state=active]:bg-card data-[state=active]:text-primary font-mono text-xs uppercase">FAL</TabsTrigger>
-              <TabsTrigger value="openai" className="flex-1 rounded-none data-[state=active]:bg-card data-[state=active]:text-primary font-mono text-xs uppercase">OpenAI</TabsTrigger>
-              <TabsTrigger value="newapi" className="flex-1 rounded-none data-[state=active]:bg-card data-[state=active]:text-primary font-mono text-xs uppercase">NewAPI</TabsTrigger>
-              <TabsTrigger value="openrouter" className="flex-1 rounded-none data-[state=active]:bg-card data-[state=active]:text-primary font-mono text-xs uppercase">OpenRouter</TabsTrigger>
-              <TabsTrigger value="gemini" className="flex-1 rounded-none data-[state=active]:bg-card data-[state=active]:text-primary font-mono text-xs uppercase">Gemini</TabsTrigger>
+            <TabsList className="flex w-full bg-muted">
+              <TabsTrigger value="fal">FAL</TabsTrigger>
+              <TabsTrigger value="openai">OpenAI</TabsTrigger>
+              <TabsTrigger value="newapi">NewAPI</TabsTrigger>
+              <TabsTrigger value="openrouter">OpenRouter</TabsTrigger>
+              <TabsTrigger value="gemini">Gemini</TabsTrigger>
             </TabsList>
 
             <TabsContent value="fal" className="space-y-4">
-              <div className="border border-primary/20 bg-primary/10 px-3 py-2 rounded-none">
-                <p className="text-xs text-primary font-mono">
+              <div className="border border-primary/20 bg-primary/5 px-3 py-2 rounded-md">
+                <p className="text-xs text-primary">
                   &gt;&gt; 系统提示：保存后配置才会生效
                 </p>
               </div>
               
-              <div className="flex items-center justify-between border border-border bg-muted/30 p-4 rounded-none">
+              <div className="flex items-center justify-between border border-border bg-muted/30 p-4 rounded-md">
                 <div className="space-y-0.5">
-                  <Label className="text-base text-foreground font-mono">启用 FAL 队列</Label>
-                  <p className="text-xs text-muted-foreground font-mono">使用 FAL 进行图像生成</p>
+                  <Label className="text-base text-foreground">启用 FAL 队列</Label>
+                  <p className="text-xs text-muted-foreground">使用 FAL 进行图像生成</p>
                 </div>
                 <Switch
                   checked={falConfig.enabled}
@@ -312,7 +312,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="fal-key" className="text-foreground font-mono text-xs">FAL API Key</Label>
+                <Label htmlFor="fal-key" className="text-foreground text-sm">FAL API Key</Label>
                 <div className="relative">
                   <Input
                     id="fal-key"
@@ -320,22 +320,22 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                     placeholder="请输入密钥..."
                     value={falConfig.apiKey}
                     onChange={(e) => setFalConfig({ ...falConfig, apiKey: e.target.value })}
-                    className="bg-background border-border text-foreground font-mono text-xs rounded-none focus-visible:ring-primary"
+                    className="bg-background border-border text-foreground"
                   />
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute right-0 top-0 h-full text-muted-foreground hover:text-foreground rounded-none"
+                    className="absolute right-0 top-0 h-full text-muted-foreground hover:text-foreground"
                     onClick={() => setShowFalKey(!showFalKey)}
                   >
                     {showFalKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
-                <p className="text-[10px] text-gray-500 mt-1">{safetyNote}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">{safetyNote}</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="fal-openai-key" className="text-gray-900">OpenAI API Key（可选）</Label>
+                <Label htmlFor="fal-openai-key" className="text-foreground">OpenAI API Key（可选）</Label>
                 <div className="relative">
                   <Input
                     id="fal-openai-key"
@@ -343,32 +343,32 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                     placeholder="当使用 BYOK 模型时请输入 OpenAI Key"
                     value={falConfig.openaiApiKey}
                     onChange={(e) => setFalConfig({ ...falConfig, openaiApiKey: e.target.value })}
-                    className="bg-white border-gray-300 text-gray-900"
+                    className="bg-background border-border text-foreground"
                   />
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute right-0 top-0 h-full text-gray-600 hover:text-gray-900"
+                    className="absolute right-0 top-0 h-full text-muted-foreground hover:text-foreground"
                     onClick={() => setShowFalOpenAIKey((prev) => !prev)}
                   >
                     {showFalOpenAIKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted-foreground">
                   仅当选择 FAL 的 BYOK 模型（如 gpt-image-1/byok）时需要填写。留空将尝试使用 OpenAI 供应商中的 Key。
                 </p>
-                <p className="text-[10px] text-gray-500">{safetyNote}</p>
+                <p className="text-[10px] text-muted-foreground">{safetyNote}</p>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-gray-900">请求发送方式</Label>
+                <Label className="text-foreground">请求发送方式</Label>
                 <Select
                   value={falConfig.requestOrigin}
                   onValueChange={(value: "client" | "server") =>
                     setFalConfig((prev) => ({ ...prev, requestOrigin: value }))
                   }
                 >
-                  <SelectTrigger className="bg-white border-gray-300 text-gray-900">
+                  <SelectTrigger className="bg-background border-border text-foreground">
                   <SelectValue placeholder="选择请求发送方式" />
                   </SelectTrigger>
                   <SelectContent>
@@ -376,37 +376,37 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                     <SelectItem value="server">通过服务器代理请求</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted-foreground">
                   客户端直连速度更快；若需隐藏 API Key 或绕过网络限制，可改为服务器代理。
                 </p>
               </div>
 
-              <p className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+              <p className="rounded-md border border-dashed border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
                 模型调用地址会自动匹配所选模型，无需手动填写端点。
               </p>
 
               <div className="grid grid-cols-2 gap-2">
-                <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveFal}>
+                <Button className="w-full" onClick={handleSaveFal}>
                   <Save className="mr-2 h-4 w-4" />
                   保存配置
                 </Button>
-                <Button variant="outline" className="rounded-none" onClick={testFalConnection}>
+                <Button variant="outline" onClick={testFalConnection}>
                   测试连接
                 </Button>
               </div>
             </TabsContent>
 
             <TabsContent value="openai" className="space-y-4">
-              <div className="border border-primary/20 bg-primary/10 px-3 py-2 rounded-none">
-                <p className="text-xs text-primary font-mono">
+              <div className="border border-primary/20 bg-primary/5 px-3 py-2 rounded-md">
+                <p className="text-xs text-primary">
                   &gt;&gt; 系统提示：保存后配置才会生效
                 </p>
               </div>
               
-              <div className="flex items-center justify-between border border-border bg-muted/30 p-4 rounded-none">
+              <div className="flex items-center justify-between border border-border bg-muted/30 p-4 rounded-md">
                 <div className="space-y-0.5">
-                  <Label className="text-base text-foreground font-mono">启用 OpenAI 图片生成</Label>
-                  <p className="text-xs text-muted-foreground font-mono">使用 OpenAI 进行图像生成</p>
+                  <Label className="text-base text-foreground">启用 OpenAI 图片生成</Label>
+                  <p className="text-xs text-muted-foreground">使用 OpenAI 进行图像生成</p>
                 </div>
                 <Switch
                   checked={openaiConfig.enabled}
@@ -415,7 +415,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="openai-key" className="text-foreground font-mono text-xs">OpenAI API Key</Label>
+                <Label htmlFor="openai-key" className="text-foreground text-sm">OpenAI API Key</Label>
                 <div className="relative">
                   <Input
                     id="openai-key"
@@ -423,53 +423,53 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                     placeholder="请输入密钥..."
                     value={openaiConfig.apiKey}
                     onChange={(e) => setOpenaiConfig({ ...openaiConfig, apiKey: e.target.value })}
-                    className="bg-background border-border text-foreground font-mono text-xs rounded-none focus-visible:ring-primary"
+                    className="bg-background border-border text-foreground"
                   />
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute right-0 top-0 h-full text-muted-foreground hover:text-foreground rounded-none"
+                    className="absolute right-0 top-0 h-full text-muted-foreground hover:text-foreground"
                     onClick={() => setShowOpenAIKey(!showOpenAIKey)}
                   >
                     {showOpenAIKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
-                <p className="text-[10px] text-gray-500 mt-1">{safetyNote}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">{safetyNote}</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="openai-endpoint" className="text-foreground font-mono text-xs">API 地址</Label>
+                <Label htmlFor="openai-endpoint" className="text-foreground text-sm">API 地址</Label>
                 <Input
                   id="openai-endpoint"
                   placeholder="https://api.openai.com/v1/images/generations"
                   value={openaiConfig.endpoint}
                   onChange={(e) => setOpenaiConfig({ ...openaiConfig, endpoint: e.target.value })}
-                  className="bg-background border-border text-foreground font-mono text-xs rounded-none focus-visible:ring-primary"
+                  className="bg-background border-border text-foreground"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveOpenAI}>
+                <Button className="w-full" onClick={handleSaveOpenAI}>
                   <Save className="mr-2 h-4 w-4" />
                   保存配置
                 </Button>
-                <Button variant="outline" className="rounded-none" onClick={testOpenAIConnection}>
+                <Button variant="outline" onClick={testOpenAIConnection}>
                   测试连接
                 </Button>
               </div>
             </TabsContent>
 
             <TabsContent value="newapi" className="space-y-4">
-              <div className="border border-primary/20 bg-primary/10 px-3 py-2 rounded-none">
-                <p className="text-xs text-primary font-mono">
+              <div className="border border-primary/20 bg-primary/5 px-3 py-2 rounded-md">
+                <p className="text-xs text-primary">
                   &gt;&gt; 系统提示：保存后配置才会生效
                 </p>
               </div>
               
-              <div className="flex items-center justify-between border border-border bg-muted/30 p-4 rounded-none">
+              <div className="flex items-center justify-between border border-border bg-muted/30 p-4 rounded-md">
                 <div className="space-y-0.5">
-                  <Label className="text-base text-foreground font-mono">启用 NewAPI</Label>
-                  <p className="text-xs text-muted-foreground font-mono">使用 NewAPI 接口生成</p>
+                  <Label className="text-base text-foreground">启用 NewAPI</Label>
+                  <p className="text-xs text-muted-foreground">使用 NewAPI 接口生成</p>
                 </div>
                 <Switch
                   checked={newapiConfig.enabled}
@@ -478,7 +478,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="newapi-key" className="text-foreground font-mono text-xs">NewAPI API Key</Label>
+                <Label htmlFor="newapi-key" className="text-foreground text-sm">NewAPI API Key</Label>
                 <div className="relative">
                   <Input
                     id="newapi-key"
@@ -486,60 +486,60 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                     placeholder="请输入密钥..."
                     value={newapiConfig.apiKey}
                     onChange={(e) => setNewapiConfig({ ...newapiConfig, apiKey: e.target.value })}
-                    className="bg-background border-border text-foreground font-mono text-xs rounded-none focus-visible:ring-primary"
+                    className="bg-background border-border text-foreground"
                   />
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute right-0 top-0 h-full text-muted-foreground hover:text-foreground rounded-none"
+                    className="absolute right-0 top-0 h-full text-muted-foreground hover:text-foreground"
                     onClick={() => setShowNewApiKey(!showNewApiKey)}
                   >
                     {showNewApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
-                <p className="text-[10px] text-gray-500 mt-1">{safetyNote}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">{safetyNote}</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="newapi-endpoint" className="text-foreground font-mono text-xs">API 地址</Label>
+                <Label htmlFor="newapi-endpoint" className="text-foreground text-sm">API 地址</Label>
                 <Input
                   id="newapi-endpoint"
                   placeholder="https://your-newapi-host"
                   value={newapiConfig.endpoint}
                   onChange={(e) => setNewapiConfig({ ...newapiConfig, endpoint: e.target.value })}
-                  className="bg-background border-border text-foreground font-mono text-xs rounded-none focus-visible:ring-primary"
+                  className="bg-background border-border text-foreground"
                 />
-                <p className="text-[10px] text-muted-foreground font-mono">
+                <p className="text-xs text-muted-foreground">
                   &gt;&gt; 地址会自动补全
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveNewAPI}>
+                <Button className="w-full" onClick={handleSaveNewAPI}>
                   <Save className="mr-2 h-4 w-4" />
                   保存配置
                 </Button>
-                <Button variant="outline" className="rounded-none" onClick={testNewApiConnection}>
+                <Button variant="outline" onClick={testNewApiConnection}>
                   测试连接
                 </Button>
               </div>
 
-              <p className="border border-dashed border-border bg-muted/20 px-3 py-2 text-[10px] text-muted-foreground font-mono rounded-none">
+              <p className="border border-dashed border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground rounded-md">
                 &gt;&gt; 模型列表首次加载后会自动缓存。
               </p>
             </TabsContent>
 
             <TabsContent value="openrouter" className="space-y-4">
-              <div className="border border-primary/20 bg-primary/10 px-3 py-2 rounded-none">
-                <p className="text-xs text-primary font-mono">
+              <div className="border border-primary/20 bg-primary/5 px-3 py-2 rounded-md">
+                <p className="text-xs text-primary">
                   &gt;&gt; 系统提示：保存后配置才会生效
                 </p>
               </div>
               
-              <div className="flex items-center justify-between border border-border bg-muted/30 p-4 rounded-none">
+              <div className="flex items-center justify-between border border-border bg-muted/30 p-4 rounded-md">
                 <div className="space-y-0.5">
-                  <Label className="text-base text-foreground font-mono">启用 OpenRouter</Label>
-                  <p className="text-xs text-muted-foreground font-mono">使用 OpenRouter 接口生成</p>
+                  <Label className="text-base text-foreground">启用 OpenRouter</Label>
+                  <p className="text-xs text-muted-foreground">使用 OpenRouter 接口生成</p>
                 </div>
                 <Switch
                   checked={openrouterConfig.enabled}
@@ -548,7 +548,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="openrouter-key" className="text-foreground font-mono text-xs">OpenRouter API Key</Label>
+                <Label htmlFor="openrouter-key" className="text-foreground text-sm">OpenRouter API Key</Label>
                 <div className="relative">
                   <Input
                     id="openrouter-key"
@@ -556,63 +556,63 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                     placeholder="请输入密钥（sk-or-v1-...）"
                     value={openrouterConfig.apiKey}
                     onChange={(e) => setOpenrouterConfig({ ...openrouterConfig, apiKey: e.target.value })}
-                    className="bg-background border-border text-foreground font-mono text-xs rounded-none focus-visible:ring-primary"
+                    className="bg-background border-border text-foreground"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground rounded-none"
+                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     onClick={() => setShowOpenRouterKey(!showOpenRouterKey)}
                   >
                     {showOpenRouterKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
-                <p className="text-[10px] text-gray-500 mt-1">{safetyNote}</p>
-                <p className="text-[10px] text-muted-foreground font-mono">
+                <p className="text-[10px] text-muted-foreground mt-1">{safetyNote}</p>
+                <p className="text-xs text-muted-foreground">
                   &gt;&gt; 前往 <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">OPENROUTER.AI</a> 获取密钥
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="openrouter-endpoint" className="text-foreground font-mono text-xs">API 地址</Label>
+                <Label htmlFor="openrouter-endpoint" className="text-foreground text-sm">API 地址</Label>
                 <Input
                   id="openrouter-endpoint"
                   value={openrouterConfig.endpoint || "https://openrouter.ai/api/v1"}
                   disabled
-                  className="bg-muted border-border text-muted-foreground cursor-not-allowed font-mono text-xs rounded-none"
+                  className="bg-muted border-border text-muted-foreground cursor-not-allowed"
                 />
-                <p className="text-[10px] text-muted-foreground font-mono">
+                <p className="text-xs text-muted-foreground">
                   &gt;&gt; 固定接口地址
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveOpenRouter}>
+                <Button className="w-full" onClick={handleSaveOpenRouter}>
                   <Save className="mr-2 h-4 w-4" />
                   保存配置
                 </Button>
-                <Button variant="outline" className="rounded-none" onClick={testOpenRouterConnection}>
+                <Button variant="outline" onClick={testOpenRouterConnection}>
                   测试连接
                 </Button>
               </div>
 
-              <p className="border border-dashed border-border bg-muted/20 px-3 py-2 text-[10px] text-muted-foreground font-mono rounded-none">
+              <p className="border border-dashed border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground rounded-md">
                 &gt;&gt; 模型列表会自动缓存，并自动筛选出可生成图像的模型。
               </p>
             </TabsContent>
 
             <TabsContent value="gemini" className="space-y-4">
-              <div className="border border-primary/20 bg-primary/10 px-3 py-2 rounded-none">
-                <p className="text-xs text-primary font-mono">
+              <div className="border border-primary/20 bg-primary/5 px-3 py-2 rounded-md">
+                <p className="text-xs text-primary">
                   &gt;&gt; 系统提示：保存后配置才会生效
                 </p>
               </div>
               
-              <div className="flex items-center justify-between border border-border bg-muted/30 p-4 rounded-none">
+              <div className="flex items-center justify-between border border-border bg-muted/30 p-4 rounded-md">
                 <div className="space-y-0.5">
-                  <Label className="text-base text-foreground font-mono">启用 Gemini</Label>
-                  <p className="text-xs text-muted-foreground font-mono">使用 Google Gemini 图片生成接口</p>
+                  <Label className="text-base text-foreground">启用 Gemini</Label>
+                  <p className="text-xs text-muted-foreground">使用 Google Gemini 图片生成接口</p>
                 </div>
                 <Switch
                   checked={geminiConfig.enabled}
@@ -621,7 +621,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="gemini-key" className="text-foreground font-mono text-xs">Gemini API Key</Label>
+                <Label htmlFor="gemini-key" className="text-foreground text-sm">Gemini API Key</Label>
                 <div className="relative">
                   <Input
                     id="gemini-key"
@@ -629,43 +629,43 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                     placeholder="请输入 Gemini API 密钥"
                     value={geminiConfig.apiKey}
                     onChange={(e) => setGeminiConfig({ ...geminiConfig, apiKey: e.target.value })}
-                    className="bg-background border-border text-foreground font-mono text-xs rounded-none focus-visible:ring-primary"
+                    className="bg-background border-border text-foreground"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground rounded-none"
+                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     onClick={() => setShowGeminiKey(!showGeminiKey)}
                   >
                     {showGeminiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
-                <p className="text-[10px] text-gray-500 mt-1">{safetyNote}</p>
-                <p className="text-[10px] text-muted-foreground font-mono">
+                <p className="text-[10px] text-muted-foreground mt-1">{safetyNote}</p>
+                <p className="text-xs text-muted-foreground">
                   &gt;&gt; 前往 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google AI Studio</a> 获取密钥
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="gemini-endpoint" className="text-foreground font-mono text-xs">API 地址</Label>
+                <Label htmlFor="gemini-endpoint" className="text-foreground text-sm">API 地址</Label>
                 <Input
                   id="gemini-endpoint"
                   value="https://generativelanguage.googleapis.com"
                   disabled
-                  className="bg-muted border-border text-muted-foreground cursor-not-allowed font-mono text-xs rounded-none"
+                  className="bg-muted border-border text-muted-foreground cursor-not-allowed"
                 />
-                <p className="text-[10px] text-muted-foreground font-mono">
+                <p className="text-xs text-muted-foreground">
                   &gt;&gt; 固定接口地址，无需修改
                 </p>
               </div>
 
-              <Button className="w-full bg-primary hover:bg-primary/80 text-primary-foreground rounded-none font-mono font-bold neon-border" onClick={handleSaveGemini}>
+              <Button className="w-full" onClick={handleSaveGemini}>
                 <Save className="mr-2 h-4 w-4" />
                 保存配置
               </Button>
 
-              <p className="border border-dashed border-border bg-muted/20 px-3 py-2 text-[10px] text-muted-foreground font-mono rounded-none">
+              <p className="border border-dashed border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground rounded-md">
                 &gt;&gt; 支持 Gemini 2.5 Flash Image 和 Gemini 3 Pro Image 模型，可生成最高 4K 分辨率图片。
               </p>
             </TabsContent>
