@@ -388,7 +388,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   模型调用地址会自动匹配所选模型，无需手动填写端点。
                 </p>
               </div>
-              <div className="shrink-0 border-t p-4 grid grid-cols-2 gap-2">
+              <div className="shrink-0 p-4 pt-0 grid grid-cols-2 gap-2">
                 <Button onClick={handleSaveFal}>
                   <Save className="mr-2 h-4 w-4" />
                   保存配置
@@ -428,7 +428,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                 </div>
 
               </div>
-              <div className="shrink-0 border-t p-4">
+              <div className="shrink-0 px-4 pb-4">
                 <Button onClick={handleSaveSystem}>
                   <Save className="mr-2 h-4 w-4" />
                   保存设置
@@ -467,7 +467,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                 </div>
 
               </div>
-              <div className="shrink-0 border-t p-4 grid grid-cols-2 gap-2">
+              <div className="shrink-0 p-4 pt-0 grid grid-cols-2 gap-2">
                 <Button onClick={handleSaveOpenAI}>
                   <Save className="mr-2 h-4 w-4" />
                   保存配置
@@ -513,7 +513,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   模型列表首次加载后会自动缓存。
                 </p>
               </div>
-              <div className="shrink-0 border-t p-4 grid grid-cols-2 gap-2">
+              <div className="shrink-0 p-4 pt-0 grid grid-cols-2 gap-2">
                 <Button onClick={handleSaveNewAPI}>
                   <Save className="mr-2 h-4 w-4" />
                   保存配置
@@ -560,7 +560,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   模型列表会自动缓存，并自动筛选出可生成图像的模型。
                 </p>
               </div>
-              <div className="shrink-0 border-t p-4 grid grid-cols-2 gap-2">
+              <div className="shrink-0 p-4 pt-0 grid grid-cols-2 gap-2">
                 <Button onClick={handleSaveOpenRouter}>
                   <Save className="mr-2 h-4 w-4" />
                   保存配置
@@ -607,7 +607,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   支持 Gemini 2.5 Flash Image 和 Gemini 3 Pro Image 模型，可生成最高 4K 分辨率图片。
                 </p>
               </div>
-              <div className="shrink-0 border-t p-4">
+              <div className="shrink-0 px-4 pb-4">
                 <Button className="w-full" onClick={handleSaveGemini}>
                   <Save className="mr-2 h-4 w-4" />
                   保存配置
