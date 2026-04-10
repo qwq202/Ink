@@ -1378,7 +1378,7 @@ export function GenerationForm({
           </AlertDialog>
 
           <div className="grid gap-6">
-          <div className="bg-card/50 p-4 border border-border rounded-md backdrop-blur-sm">
+          <div>
             <div className="flex items-center justify-between pb-3">
               <Label htmlFor="prompt" className="text-sm font-medium">提示词</Label>
               <div className="flex items-center gap-2">
