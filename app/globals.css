@@ -117,8 +117,13 @@
   * {
     @apply border-border;
   }
+  html {
+    @apply bg-background;
+  }
   body {
     @apply bg-background text-foreground antialiased;
+    min-height: 100vh;
+    min-height: 100dvh;
   }
 }
 
