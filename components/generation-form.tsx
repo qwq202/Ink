@@ -2219,7 +2219,7 @@ export function GenerationForm({
             ) : null}
           </section>
       
-          <section className="rounded-md border border-border bg-background p-4">
+          <section className="rounded-md border border-border bg-card p-4">
             <header className="pb-4">
               <h3 className="text-sm font-semibold text-foreground">图片参数</h3>
             </header>
