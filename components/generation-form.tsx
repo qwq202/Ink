@@ -2345,31 +2345,30 @@ export function GenerationForm({
                 )}
               </div>
 
-              <div className="flex items-center justify-between sm:col-span-2 pt-2">
-                <p className="text-sm font-medium text-foreground">高级设置</p>
-                <Button variant="outline" size="sm" onClick={() => setShowAdvanced((v) => !v)}>
-                  {showAdvanced ? "收起" : "展开"}
-                </Button>
-              </div>
-
-              {showAdvanced && (
-                <>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="seed" className="text-sm font-medium text-foreground">
-                      随机种子
-                    </Label>
-                    <Input
-                      id="seed"
-                      type="number"
-                      placeholder="保持为空将随机生成"
-                      value={seed ?? ""}
-                      onChange={(e) => setSeed(e.target.value ? Number(e.target.value) : undefined)}
-                    />
-                  </div>
-                </>
-              )}
             </div>
           </section>
+
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-foreground">高级设置</p>
+            <Button variant="outline" size="sm" onClick={() => setShowAdvanced((v) => !v)}>
+              {showAdvanced ? "收起" : "展开"}
+            </Button>
+          </div>
+
+          {showAdvanced && (
+            <div className="space-y-2">
+              <Label htmlFor="seed" className="text-sm font-medium text-foreground">
+                随机种子
+              </Label>
+              <Input
+                id="seed"
+                type="number"
+                placeholder="保持为空将随机生成"
+                value={seed ?? ""}
+                onChange={(e) => setSeed(e.target.value ? Number(e.target.value) : undefined)}
+              />
+            </div>
+          )}
 
           {showAdvanced && (
             <section className="rounded-md border border-border bg-background p-4">
