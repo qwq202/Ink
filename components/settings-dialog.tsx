@@ -284,7 +284,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[calc(100vw-3rem)] bg-card text-foreground border-border p-0 gap-0">
+      <DialogContent className="max-w-4xl sm:max-w-4xl w-full bg-card text-foreground border-border p-0 gap-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle>设置</DialogTitle>
           <DialogDescription>配置各 AI 服务的连接与密钥</DialogDescription>
