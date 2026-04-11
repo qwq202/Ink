@@ -7,11 +7,12 @@ export interface FalModel {
   title: string
   description: string
   tags: string[]
+  categories: Array<"text-to-image" | "image-to-image">
   thumbnailUrl: string
   deprecated: boolean
   unlisted: boolean
   groupLabel: string | null
-  queueEndpoint: string
+  queueEndpoint?: string
 }
 
 interface FalModelsApiResponse {
@@ -41,6 +42,40 @@ interface FalModelsCacheEntry {
 
 const memoryCache = new Map<string, FalModelsCacheEntry>()
 const prefetchInFlight = new Map<string, Promise<void>>()
+const IMAGE_TO_IMAGE_KEYS = ["image-to-image", "img2img", "edit", "inpaint"]
+const TEXT_TO_IMAGE_KEYS = ["text-to-image", "txt2img", "text2image", "generation"]
+
+function inferFalModelCategories(model: Pick<FalModel, "id" | "tags" | "description">): Array<"text-to-image" | "image-to-image"> {
+  const tags = Array.isArray(model.tags) ? model.tags : []
+  const haystack = `${model.id} ${model.description} ${tags.join(" ")}`.toLowerCase()
+  const categories = new Set<"text-to-image" | "image-to-image">()
+
+  if (TEXT_TO_IMAGE_KEYS.some((key) => haystack.includes(key))) {
+    categories.add("text-to-image")
+  }
+  if (IMAGE_TO_IMAGE_KEYS.some((key) => haystack.includes(key))) {
+    categories.add("image-to-image")
+  }
+
+  if (categories.size === 0) {
+    categories.add("text-to-image")
+  }
+
+  return Array.from(categories)
+}
+
+function normalizeFalModelItem(model: FalModel): FalModel {
+  return {
+    ...model,
+    title: model.title || model.id,
+    description: model.description || "",
+    tags: Array.isArray(model.tags) ? model.tags : [],
+    categories:
+      Array.isArray(model.categories) && model.categories.length > 0
+        ? model.categories
+        : inferFalModelCategories(model),
+  }
+}
 
 function hashString(value: string): string {
   let hash = 0
@@ -61,7 +96,10 @@ function createCacheKey(category?: string, search?: string, apiKey?: string) {
 function readCache(key: string): FalModelsCacheEntry | null {
   const inMemory = memoryCache.get(key)
   if (inMemory) {
-    return inMemory
+    return {
+      ...inMemory,
+      items: inMemory.items.map((item) => normalizeFalModelItem(item)),
+    }
   }
 
   if (typeof window === "undefined") {
@@ -82,8 +120,12 @@ function readCache(key: string): FalModelsCacheEntry | null {
     ) {
       return null
     }
-    memoryCache.set(key, parsed as FalModelsCacheEntry)
-    return parsed as FalModelsCacheEntry
+    const normalized: FalModelsCacheEntry = {
+      cachedAt: parsed.cachedAt,
+      items: parsed.items.map((item: FalModel) => normalizeFalModelItem(item)),
+    }
+    memoryCache.set(key, normalized)
+    return normalized
   } catch {
     return null
   }
@@ -147,7 +189,7 @@ export function useFalModels(options: UseFalModelsOptions = {}) {
         if (!apiKey) {
           setIsLoading(false)
           setIsRefreshing(false)
-          setError(enabled ? "请先启用并填写 FAL Admin Key，再获取模型列表。" : null)
+          setError(enabled ? "请先启用并填写 FAL API Key，再获取模型列表。" : null)
           return
         }
 
@@ -189,11 +231,13 @@ export function useFalModels(options: UseFalModelsOptions = {}) {
           throw new Error(data.error || "Failed to load fal models")
         }
 
+        const normalizedItems = data.items.map((item) => normalizeFalModelItem(item))
+
         if (isMountedRef.current) {
-          setModels(data.items)
+          setModels(normalizedItems)
           setLastUpdatedAt(typeof data.cachedAt === "number" ? data.cachedAt : Date.now())
           writeCache(cacheKey, {
-            items: data.items,
+            items: normalizedItems,
             cachedAt: typeof data.cachedAt === "number" ? data.cachedAt : Date.now(),
           })
         }
@@ -280,7 +324,7 @@ export function prefetchFalModels(
         return
       }
       writeCache(cacheKey, {
-        items: data.items,
+        items: data.items.map((item) => normalizeFalModelItem(item)),
         cachedAt: typeof data.cachedAt === "number" ? data.cachedAt : Date.now(),
       })
     })

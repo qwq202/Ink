@@ -37,6 +37,12 @@ import { useNewApiModels } from "@/hooks/use-newapi-models"
 import { useOpenRouterModels } from "@/hooks/use-openrouter-models"
 import { useGeminiModels } from "@/hooks/use-gemini-models"
 import { cn } from "@/lib/utils"
+import {
+  DEFAULT_FAL_MODEL_ID,
+  getFalBaseModelId,
+  getFalModelCapability,
+  resolveFalModelIdForMode,
+} from "@/lib/fal-capabilities"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 
@@ -80,10 +86,10 @@ export function GenerationForm({
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [safetyChecker, setSafetyChecker] = useState(true)
   const [syncMode, setSyncMode] = useState(true)
-  const [selectedFalModel, setSelectedFalModel] = useState<string>("fal-ai/flux/dev")
+  const [selectedFalModel, setSelectedFalModel] = useState<string>(DEFAULT_FAL_MODEL_ID)
   const falModelByCategoryRef = useRef<Record<string, string>>({
-    "text-to-image": "fal-ai/flux/dev",
-    "image-to-image": "fal-ai/flux/dev",
+    "text-to-image": DEFAULT_FAL_MODEL_ID,
+    "image-to-image": DEFAULT_FAL_MODEL_ID,
   })
   const [isFalModelPopoverOpen, setIsFalModelPopoverOpen] = useState(false)
   const [falSearch, setFalSearch] = useState("")
@@ -211,8 +217,14 @@ export function GenerationForm({
     if (initialParams.thinkingLevel) setGeminiThinkingLevel(initialParams.thinkingLevel)
     if (initialParams.mediaResolution) setGeminiMediaResolution(initialParams.mediaResolution)
     if (initialParams.aspectRatio) setGeminiAspectRatio(initialParams.aspectRatio as any)
+    if (initialParams.falNanoBananaAspectRatio) setFalNanoBananaAspectRatio(initialParams.falNanoBananaAspectRatio)
+    if (initialParams.falNanoBananaResolution) setFalNanoBananaResolution(initialParams.falNanoBananaResolution)
+    if (initialParams.falNanoBananaOutputFormat) setFalNanoBananaOutputFormat(initialParams.falNanoBananaOutputFormat)
+    if (initialParams.falGemini3ProAspectRatio) setFalGemini3ProAspectRatio(initialParams.falGemini3ProAspectRatio)
+    if (initialParams.falGemini3ProResolution) setFalGemini3ProResolution(initialParams.falGemini3ProResolution)
+    if (initialParams.falGemini3ProOutputFormat) setFalGemini3ProOutputFormat(initialParams.falGemini3ProOutputFormat)
     if (initialParams.modelId) {
-      setSelectedFalModel(initialParams.modelId)
+      setSelectedFalModel(getFalBaseModelId(initialParams.modelId))
       setSelectedNewapiModel(initialParams.modelId)
       setSelectedOpenRouterModel(initialParams.modelId)
     }
@@ -227,11 +239,12 @@ export function GenerationForm({
   const openaiProvider = getProvider("openai")
   const updateFalModel = useCallback(
     (modelId: string) => {
+      const nextModelId = getFalBaseModelId(modelId)
       falModelByCategoryRef.current = {
         ...falModelByCategoryRef.current,
-        [falCategory]: modelId,
+        [falCategory]: nextModelId,
       }
-      setSelectedFalModel(modelId)
+      setSelectedFalModel(nextModelId)
     },
     [falCategory],
   )
@@ -415,21 +428,31 @@ export function GenerationForm({
   })
   const deferredFalModels = useDeferredValue(falModels)
   const hasFalModels = deferredFalModels.length > 0
+  const effectiveFalModelId = useMemo(
+    () => resolveFalModelIdForMode(selectedFalModel, mode),
+    [mode, selectedFalModel],
+  )
+  const selectedFalCapability = useMemo(
+    () => getFalModelCapability(selectedFalModel, mode),
+    [mode, selectedFalModel],
+  )
   const selectedFalModelOption = useMemo(
-    () => deferredFalModels.find((model) => model.id === selectedFalModel),
-    [deferredFalModels, selectedFalModel],
+    () =>
+      deferredFalModels.find((model) => model.id === selectedFalModel) ||
+      deferredFalModels.find((model) => model.id === effectiveFalModelId),
+    [deferredFalModels, effectiveFalModelId, selectedFalModel],
   )
   
-  // 辅助函数：检查当前是否选中 nano-banana-pro（包括编辑模式）
+  // 辅助函数：检查当前是否选中 nano-banana-pro（能力驱动）
   const isNanoBananaProSelected = useMemo(
-    () => safeSelectedProvider === "fal" && (selectedFalModel === "fal-ai/nano-banana-pro" || selectedFalModel === "fal-ai/nano-banana-pro/edit"),
-    [safeSelectedProvider, selectedFalModel]
+    () => safeSelectedProvider === "fal" && selectedFalCapability.specialConfig === "nano-banana-pro",
+    [safeSelectedProvider, selectedFalCapability.specialConfig]
   )
   
-  // 辅助函数：检查当前是否选中 gemini-3-pro-image-preview (Nano Banana 2，包括编辑模式)
+  // 辅助函数：检查当前是否选中 gemini-3-pro-image-preview（能力驱动）
   const isGemini3ProPreviewSelected = useMemo(
-    () => safeSelectedProvider === "fal" && (selectedFalModel === "fal-ai/gemini-3-pro-image-preview" || selectedFalModel === "fal-ai/gemini-3-pro-image-preview/edit"),
-    [safeSelectedProvider, selectedFalModel]
+    () => safeSelectedProvider === "fal" && selectedFalCapability.specialConfig === "gemini-3-pro-image-preview",
+    [safeSelectedProvider, selectedFalCapability.specialConfig]
   )
   
   const falModelButtonLabel =
@@ -658,24 +681,6 @@ export function GenerationForm({
     return numImages
   }, [numImages, selectedNewapiModel, safeSelectedProvider])
 
-  const normalizeFalModelFromEndpoint = useCallback(() => {
-    const providers = getEnabledProviderSettings()
-    const falProvider = providers.find((provider) => provider.id === "fal")
-    const endpoint = falProvider?.endpoint
-
-    if (!endpoint) {
-      return "fal-ai/flux/dev"
-    }
-
-    try {
-      const url = new URL(endpoint)
-      const path = url.pathname.replace(/^\/+/, "")
-      return path || "fal-ai/flux/dev"
-    } catch {
-      return endpoint.replace(/^https?:\/\/[^/]+\//, "") || "fal-ai/flux/dev"
-    }
-  }, [getEnabledProviderSettings])
-
   const resetForm = useCallback(() => {
     const providers = getEnabledProviderSettings()
     if (providers.length === 0) {
@@ -693,10 +698,10 @@ export function GenerationForm({
       setGeminiMediaResolution("media_resolution_high")
       setGeminiAspectRatio("1:1")
       falModelByCategoryRef.current = {
-        "text-to-image": "fal-ai/flux/dev",
-        "image-to-image": "fal-ai/flux/dev",
+        "text-to-image": DEFAULT_FAL_MODEL_ID,
+        "image-to-image": DEFAULT_FAL_MODEL_ID,
       }
-      setSelectedFalModel("fal-ai/flux/dev")
+      setSelectedFalModel(DEFAULT_FAL_MODEL_ID)
       setSelectedNewapiModel("dall-e-2")
       setNewapiQuality("standard")
       setNewapiStyle("vivid")
@@ -716,17 +721,16 @@ export function GenerationForm({
     setGeminiThinkingLevel("high")
     setGeminiMediaResolution("media_resolution_high")
     setGeminiAspectRatio("1:1")
-    const normalized = normalizeFalModelFromEndpoint()
     falModelByCategoryRef.current = {
-      "text-to-image": normalized,
-      "image-to-image": normalized,
+      "text-to-image": DEFAULT_FAL_MODEL_ID,
+      "image-to-image": DEFAULT_FAL_MODEL_ID,
     }
-    setSelectedFalModel(normalized)
+    setSelectedFalModel(DEFAULT_FAL_MODEL_ID)
     setSelectedNewapiModel("dall-e-2")
     setNewapiQuality("standard")
     setNewapiStyle("vivid")
     setSelectedProvider((prev) => (providers.some((provider) => provider.id === prev) ? prev : providers[0]?.id || ""))
-  }, [getEnabledProviderSettings, normalizeFalModelFromEndpoint])
+  }, [getEnabledProviderSettings])
 
   useEffect(() => {
     if (resetSignal === undefined) return
@@ -763,19 +767,14 @@ export function GenerationForm({
 
     let fallback: string | null = null
 
-    const modelFromEndpoint = normalizeFalModelFromEndpoint()
-    if (falModels.some((model) => model.id === modelFromEndpoint)) {
-      fallback = modelFromEndpoint
-    }
-
     if (!fallback) {
-      fallback = falModels[0]?.id ?? "fal-ai/flux/dev"
+      fallback = falModels[0]?.id ?? DEFAULT_FAL_MODEL_ID
     }
 
     if (fallback) {
       updateFalModel(fallback)
     }
-  }, [falModels, normalizeFalModelFromEndpoint, falCategory, safeSelectedProvider, selectedFalModel, updateFalModel])
+  }, [falModels, falCategory, safeSelectedProvider, selectedFalModel, updateFalModel])
 
   useEffect(() => {
     if (!newapiModels.length) return
@@ -833,7 +832,7 @@ export function GenerationForm({
     }
     
     const modelId = provider.id === "fal"
-      ? selectedFalModel
+      ? effectiveFalModelId
       : provider.id === "newapi"
       ? selectedNewapiModel
       : provider.id === "openrouter"
@@ -868,9 +867,10 @@ export function GenerationForm({
       params: {
         imageSize: effectiveImageSize,
         numImages: safeNumImages,
-        seed,
-        safetyChecker,
-        syncMode,
+        seed: provider.id === "fal" && !selectedFalCapability.supportsSeed ? undefined : seed,
+        safetyChecker:
+          provider.id === "fal" && !selectedFalCapability.supportsSafetyChecker ? undefined : safetyChecker,
+        syncMode: provider.id === "fal" && !selectedFalCapability.supportsSyncMode ? undefined : syncMode,
         quality: provider.id === "newapi" ? safeNewapiQuality : undefined,
         style: provider.id === "newapi" ? newapiStyle : undefined,
         thinkingLevel: (
@@ -904,10 +904,13 @@ export function GenerationForm({
     mode,
     images,
     safeSelectedProvider, 
-    selectedFalModel,
+    effectiveFalModelId,
     selectedNewapiModel,
     selectedOpenRouterModel,
     selectedGeminiModel,
+    selectedFalCapability.supportsSafetyChecker,
+    selectedFalCapability.supportsSeed,
+    selectedFalCapability.supportsSyncMode,
     effectiveImageSize,
     safeNumImages,
     seed,
@@ -938,7 +941,7 @@ export function GenerationForm({
     
     if (historyItem.modelId) {
       if (historyItem.providerId === "fal") {
-        updateFalModel(historyItem.modelId)
+        updateFalModel(getFalBaseModelId(historyItem.modelId))
       } else if (historyItem.providerId === "newapi") {
         setSelectedNewapiModel(historyItem.modelId)
       } else if (historyItem.providerId === "openrouter") {
@@ -973,6 +976,9 @@ export function GenerationForm({
     if (params.falNanoBananaAspectRatio) setFalNanoBananaAspectRatio(params.falNanoBananaAspectRatio)
     if (params.falNanoBananaResolution) setFalNanoBananaResolution(params.falNanoBananaResolution)
     if (params.falNanoBananaOutputFormat) setFalNanoBananaOutputFormat(params.falNanoBananaOutputFormat)
+    if (params.falGemini3ProAspectRatio) setFalGemini3ProAspectRatio(params.falGemini3ProAspectRatio)
+    if (params.falGemini3ProResolution) setFalGemini3ProResolution(params.falGemini3ProResolution)
+    if (params.falGemini3ProOutputFormat) setFalGemini3ProOutputFormat(params.falGemini3ProOutputFormat)
     
     // 如果有原图，恢复到上传区
     if (historyItem.sourceImages && historyItem.sourceImages.length > 0 && onImagesChange && onModeChange) {
@@ -1050,7 +1056,7 @@ export function GenerationForm({
     }
 
     const modelId = provider.id === "fal"
-      ? selectedFalModel
+      ? effectiveFalModelId
       : provider.id === "newapi"
       ? selectedNewapiModel
       : provider.id === "openrouter"
@@ -1103,9 +1109,10 @@ export function GenerationForm({
       params: {
         imageSize: effectiveImageSize,
         numImages: safeNumImages,
-        seed,
-        safetyChecker,
-        syncMode,
+        seed: provider.id === "fal" && !selectedFalCapability.supportsSeed ? undefined : seed,
+        safetyChecker:
+          provider.id === "fal" && !selectedFalCapability.supportsSafetyChecker ? undefined : safetyChecker,
+        syncMode: provider.id === "fal" && !selectedFalCapability.supportsSyncMode ? undefined : syncMode,
         quality: provider.id === "newapi" ? safeNewapiQuality : undefined,
         style: provider.id === "newapi" ? newapiStyle : undefined,
         thinkingLevel: (
@@ -1134,9 +1141,9 @@ export function GenerationForm({
       prompt,
       imageSize: effectiveImageSize,
       numImages: safeNumImages,
-      seed,
-      safetyChecker,
-      syncMode,
+      seed: provider.id === "fal" && !selectedFalCapability.supportsSeed ? undefined : seed,
+      safetyChecker: provider.id === "fal" && !selectedFalCapability.supportsSafetyChecker ? undefined : safetyChecker,
+      syncMode: provider.id === "fal" && !selectedFalCapability.supportsSyncMode ? undefined : syncMode,
       images: mode === "img2img" ? images : undefined,
       modelId,
       quality: provider.id === "newapi" ? safeNewapiQuality : undefined,
@@ -1606,7 +1613,9 @@ export function GenerationForm({
                                 未找到匹配的模型
                               </CommandEmpty>
                               <CommandGroup>
-                                {deferredFalModels.map((model) => (
+                                {deferredFalModels.map((model) => {
+                                  const isSelected = getFalBaseModelId(model.id) === selectedFalModel
+                                  return (
                                   <CommandItem
                                     key={model.id}
                                     value={`${model.title} ${model.id} ${(model.tags || []).join(" ")}`}
@@ -1618,20 +1627,21 @@ export function GenerationForm({
                                       "mb-1 cursor-pointer rounded-md border border-transparent px-3 py-3 transition-all",
                                       "hover:border-border hover:bg-muted/50",
                                       "aria-selected:border-primary/30 aria-selected:bg-muted/50",
-                                      selectedFalModel === model.id && "border-primary bg-muted/50"
+                                      isSelected && "border-primary bg-muted/50"
                                     )}
                                   >
                                     <div className="flex flex-1 flex-col gap-0.5">
                                       <span className="text-sm font-semibold text-foreground">{model.title}</span>
                                       <span className="text-xs text-muted-foreground">{model.id}</span>
                                     </div>
-                                    {selectedFalModel === model.id ? (
+                                    {isSelected ? (
                                       <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
                                         <Check className="h-3 w-3 text-white" />
                                       </div>
                                     ) : null}
                                   </CommandItem>
-                                ))}
+                                  )
+                                })}
                               </CommandGroup>
                             </>
                           )}
@@ -2225,7 +2235,7 @@ export function GenerationForm({
             </header>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              {!isNanoBananaProSelected && !isGemini3ProPreviewSelected && (
+              {!(safeSelectedProvider === "fal" && !selectedFalCapability.supportsImageSize) && (
                 <div className="space-y-2">
                   <Label htmlFor="size" className="text-sm font-medium text-foreground">
                     图片尺寸
@@ -2355,7 +2365,7 @@ export function GenerationForm({
             </Button>
           </div>
 
-          {showAdvanced && (
+          {showAdvanced && (safeSelectedProvider !== "fal" || selectedFalCapability.supportsSeed) && (
             <div className="space-y-2">
               <Label htmlFor="seed" className="text-sm font-medium text-foreground">
                 随机种子
@@ -2377,21 +2387,25 @@ export function GenerationForm({
               </header>
 
               <div className="grid gap-3">
-                <div className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">安全检查</p>
-                    <p className="text-xs text-muted-foreground">启用内容安全过滤，确保生成内容合规</p>
+                {(safeSelectedProvider !== "fal" || selectedFalCapability.supportsSafetyChecker) && (
+                  <div className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">安全检查</p>
+                      <p className="text-xs text-muted-foreground">启用内容安全过滤，确保生成内容合规</p>
+                    </div>
+                    <Switch id="safety" checked={safetyChecker} onCheckedChange={setSafetyChecker} />
                   </div>
-                  <Switch id="safety" checked={safetyChecker} onCheckedChange={setSafetyChecker} />
-                </div>
+                )}
 
-                <div className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">同步模式</p>
-                    <p className="text-xs text-muted-foreground">等待生成完成后再返回结果</p>
+                {(safeSelectedProvider !== "fal" || selectedFalCapability.supportsSyncMode) && (
+                  <div className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">同步模式</p>
+                      <p className="text-xs text-muted-foreground">等待生成完成后再返回结果</p>
+                    </div>
+                    <Switch id="sync" checked={syncMode} onCheckedChange={setSyncMode} />
                   </div>
-                  <Switch id="sync" checked={syncMode} onCheckedChange={setSyncMode} />
-                </div>
+                )}
               </div>
             </section>
           )}
