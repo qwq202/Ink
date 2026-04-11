@@ -160,13 +160,6 @@ async function loadFalModelsFromRemote({
   authorizationHeader: string | null
   logContext: Record<string, unknown>
 }): Promise<FalModelsCacheEntry> {
-  if (!authorizationHeader) {
-    throw new FalModelsFetchError(
-      "未提供 FAL Admin API 密钥。/v1/models 接口必须使用 Admin Key，User Key 仅适用于推理请求。",
-      401,
-    )
-  }
-
   console.info("[api/fal/models] Fetching fal.ai v1 models", logContext)
 
   const targetFetchLimit = MAX_TOTAL_LIMIT
@@ -192,7 +185,9 @@ async function loadFalModelsFromRemote({
 
         if (status === 401 || status === 403) {
           throw new FalModelsFetchError(
-            "FAL Admin API 密钥无效或权限不足（需要 Admin Key）。User Key 无法调用 /v1/models 接口。",
+            authorizationHeader
+              ? "FAL API 密钥无效或权限不足，请检查后重试。"
+              : "fal.ai 模型列表接口当前拒绝匿名访问，请提供 FAL API Key 后重试。",
             403,
           )
         }
