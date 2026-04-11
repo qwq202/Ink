@@ -177,11 +177,11 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
     },
   })
 
-  const extractImageUrls = (result: unknown): string[] => {
+  const extractImageUrls = (result: unknown, dedupe = true): string[] => {
     if (!result) return []
     if (typeof result === "string") return [result]
     if (Array.isArray(result)) {
-      return result.flatMap((item) => extractImageUrls(item))
+      return result.flatMap((item) => extractImageUrls(item, dedupe))
     }
     if (typeof result !== "object") return []
 
@@ -201,11 +201,11 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
 
     for (const key of ["image", "images", "data", "output", "result", "contents", "items", "file", "files"]) {
       if (record[key] != null) {
-        urls.push(...extractImageUrls(record[key]))
+        urls.push(...extractImageUrls(record[key], dedupe))
       }
     }
 
-    return Array.from(new Set(urls))
+    return dedupe ? Array.from(new Set(urls)) : urls
   }
 
   try {
@@ -239,7 +239,7 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
       },
     })
 
-    const images = extractImageUrls(result.data)
+    const images = extractImageUrls(result.data, false)
     if (!images.length) {
       throw new Error("FAL API 未返回图像结果。")
     }

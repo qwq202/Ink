@@ -87,6 +87,8 @@ function sanitizeFalConfig(config: unknown): { fal: FalProviderConfig; legacyInv
     fal: {
       ...DEFAULT_PROVIDERS.fal,
       apiKey: typeof falConfig.apiKey === "string" ? falConfig.apiKey : DEFAULT_PROVIDERS.fal.apiKey,
+      openaiApiKey:
+        typeof falConfig.openaiApiKey === "string" ? falConfig.openaiApiKey : DEFAULT_PROVIDERS.fal.openaiApiKey,
       enabled: typeof falConfig.enabled === "boolean" ? falConfig.enabled : DEFAULT_PROVIDERS.fal.enabled,
     },
     legacyInvalidated,

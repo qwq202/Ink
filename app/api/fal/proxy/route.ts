@@ -32,7 +32,7 @@ function resolveServerFalAuth(authorization: string | null): string | undefined 
 }
 
 const proxyRoute = createRouteHandler({
-  allowedEndpoints: ["fal-ai/**"],
+  allowedEndpoints: ["**"],
   allowUnauthorizedRequests: false,
   isAuthenticated: async (behavior) => Boolean(resolveServerFalAuth(behavior.getHeader("authorization"))),
   resolveFalAuth: async (behavior) => resolveServerFalAuth(behavior.getHeader("authorization")),

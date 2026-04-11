@@ -82,6 +82,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
     dismissFalLegacyConfigNotice,
   } = useProviderSettings()
   const [showFalKey, setShowFalKey] = useState(false)
+  const [showFalOpenAIKey, setShowFalOpenAIKey] = useState(false)
   const [showOpenAIKey, setShowOpenAIKey] = useState(false)
   const [showNewApiKey, setShowNewApiKey] = useState(false)
   const [showOpenRouterKey, setShowOpenRouterKey] = useState(false)
@@ -90,9 +91,11 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
 
   const [falConfig, setFalConfig] = useState<{
     apiKey: string
+    openaiApiKey: string
     enabled: boolean
   }>({
     apiKey: "",
+    openaiApiKey: "",
     enabled: false,
   })
 
@@ -139,6 +142,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
 
     setFalConfig({
       apiKey: settings.fal.apiKey,
+      openaiApiKey: settings.fal.openaiApiKey ?? "",
       enabled: settings.fal.enabled,
     })
 
@@ -332,6 +336,18 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   value={falConfig.apiKey}
                   onChange={(v) => setFalConfig({ ...falConfig, apiKey: v })}
                   placeholder="请输入密钥..."
+                  safetyNote={safetyNote}
+                />
+
+                <KeyInput
+                  id="fal-openai-key"
+                  label="OpenAI API Key（可选）"
+                  showKey={showFalOpenAIKey}
+                  onToggleShow={() => setShowFalOpenAIKey(!showFalOpenAIKey)}
+                  value={falConfig.openaiApiKey}
+                  onChange={(v) => setFalConfig({ ...falConfig, openaiApiKey: v })}
+                  placeholder="BYOK 模型可选填写"
+                  hint="仅当使用 FAL 的 BYOK 模型时需要。留空会回退到 OpenAI 供应商中的 API Key。"
                   safetyNote={safetyNote}
                 />
 
