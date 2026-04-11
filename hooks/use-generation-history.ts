@@ -25,12 +25,24 @@ export function useGenerationHistory() {
   // 加载历史记录
   useEffect(() => {
     if (typeof window === "undefined") return
-    
-    const loaded = loadJSON<GenerationHistoryItem[]>(STORAGE_KEY, [])
-    // 按时间戳倒序排列
-    const sorted = loaded.sort((a, b) => b.timestamp - a.timestamp)
-    setHistory(sorted)
-    setIsLoading(false)
+
+    let active = true
+
+    const loadStoredHistory = async () => {
+      await Promise.resolve()
+      if (!active) return
+
+      const loaded = loadJSON<GenerationHistoryItem[]>(STORAGE_KEY, [])
+      const sorted = loaded.sort((a, b) => b.timestamp - a.timestamp)
+      setHistory(sorted)
+      setIsLoading(false)
+    }
+
+    void loadStoredHistory()
+
+    return () => {
+      active = false
+    }
   }, [])
 
   // 保存历史记录
@@ -99,4 +111,3 @@ export function useGenerationHistory() {
     getHistoryItem,
   }
 }
-

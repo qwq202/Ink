@@ -133,7 +133,7 @@ export function useGeneration() {
 
       return result
     },
-    [toast, addTask],
+    [toast, addTask, getTask],
   )
 
   const clearResults = useCallback(() => {
