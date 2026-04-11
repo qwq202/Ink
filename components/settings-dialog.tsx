@@ -6,9 +6,8 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { Save, Eye, EyeOff, Check, Settings } from "lucide-react"
+import { Save, Eye, EyeOff, AlertTriangle } from "lucide-react"
 import { useProviderSettings } from "@/hooks/use-provider-settings"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -20,7 +19,7 @@ interface SettingsDialogProps {
 }
 
 const PROVIDERS = [
-  { id: "fal", label: "FAL", desc: "FAL 队列服务" },
+  { id: "fal", label: "FAL", desc: "FAL 模型服务" },
   { id: "openai", label: "OpenAI", desc: "OpenAI 图片生成" },
   { id: "newapi", label: "NewAPI", desc: "NewAPI 接口" },
   { id: "openrouter", label: "OpenRouter", desc: "OpenRouter 接口" },
@@ -70,14 +69,19 @@ function KeyInput({
         </Button>
       </div>
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {safetyNote && <p className="text-xs text-muted-foreground">{safetyNote}</p>}
     </div>
   )
 }
 
 export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: SettingsDialogProps) {
-  const { settings, updateProvider } = useProviderSettings()
+  const {
+    settings,
+    updateProvider,
+    hasFalLegacyConfigInvalidated,
+    dismissFalLegacyConfigNotice,
+  } = useProviderSettings()
   const [showFalKey, setShowFalKey] = useState(false)
-  const [showFalOpenAIKey, setShowFalOpenAIKey] = useState(false)
   const [showOpenAIKey, setShowOpenAIKey] = useState(false)
   const [showNewApiKey, setShowNewApiKey] = useState(false)
   const [showOpenRouterKey, setShowOpenRouterKey] = useState(false)
@@ -86,14 +90,10 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
 
   const [falConfig, setFalConfig] = useState<{
     apiKey: string
-    openaiApiKey: string
     enabled: boolean
-    requestOrigin: "client" | "server"
   }>({
     apiKey: "",
-    openaiApiKey: "",
     enabled: false,
-    requestOrigin: "client",
   })
 
   const [openaiConfig, setOpenaiConfig] = useState({
@@ -122,7 +122,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
   const [internalTab, setInternalTab] = useState("fal")
   const activeProvider = activeTab ?? internalTab
   const safetyNote = "密钥仅保存在本地加密存储，不会上传到服务器。"
-  const [requestOrigin, setRequestOrigin] = useState<"client" | "server">("client")
 
   const isEnabled = (id: string) => {
     switch (id) {
@@ -140,21 +139,18 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
 
     setFalConfig({
       apiKey: settings.fal.apiKey,
-      openaiApiKey: settings.fal.openaiApiKey ?? "",
       enabled: settings.fal.enabled,
-      requestOrigin: settings.fal.requestOrigin ?? "client",
     })
-    setRequestOrigin(settings.fal.requestOrigin ?? "client")
 
     setOpenaiConfig({
       apiKey: settings.openai.apiKey,
-      endpoint: settings.openai.endpoint,
+      endpoint: settings.openai.endpoint ?? "https://api.openai.com/v1/images/generations",
       enabled: settings.openai.enabled,
     })
 
     setNewapiConfig({
       apiKey: settings.newapi.apiKey,
-      endpoint: settings.newapi.endpoint,
+      endpoint: settings.newapi.endpoint ?? "",
       enabled: settings.newapi.enabled,
     })
 
@@ -171,13 +167,9 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
   }, [settings])
 
   const handleSaveFal = async () => {
-    await updateProvider("fal", { ...falConfig, requestOrigin })
+    await updateProvider("fal", { ...falConfig })
+    dismissFalLegacyConfigNotice()
     toast({ title: "配置已保存", description: "FAL 配置已成功保存" })
-  }
-
-  const handleSaveSystem = async () => {
-    await updateProvider("fal", { ...falConfig, requestOrigin })
-    toast({ title: "设置已保存", description: "系统设置已成功保存" })
   }
 
   const handleSaveOpenAI = async () => {
@@ -217,22 +209,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
 
     await updateProvider("openrouter", configToSave)
     toast({ title: "配置已保存", description: "OpenRouter 配置已成功保存" })
-  }
-
-  const testFalConnection = async () => {
-    try {
-      const res = await fetch("/api/fal/models?category=text-to-image", {
-        headers: falConfig.apiKey ? { authorization: `Bearer ${falConfig.apiKey}` } : undefined,
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      toast({ title: "FAL 连接正常" })
-    } catch (error) {
-      toast({
-        title: "FAL 连接失败",
-        description: error instanceof Error ? error.message : "请求错误",
-        variant: "destructive",
-      })
-    }
   }
 
   const testOpenAIConnection = async () => {
@@ -327,23 +303,6 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                 />
               </div>
             ))}
-            <div className="mt-auto pt-2">
-              <div
-                className={cn(
-                  "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm transition-colors cursor-pointer",
-                  activeProvider === "system"
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                )}
-                onClick={() => {
-                  setInternalTab("system")
-                  onTabChange?.("system")
-                }}
-              >
-                <Settings className="h-3.5 w-3.5 shrink-0" />
-                <span className="flex-1 font-medium">系统设置</span>
-              </div>
-            </div>
           </nav>
 
           {/* Right: Config Form */}
@@ -353,7 +312,17 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">FAL</h3>
+                  <p className="text-sm text-muted-foreground mt-1">按官方推荐，仅需配置 FAL API Key，模型使用 `model_id` 管理。</p>
                 </div>
+
+                {hasFalLegacyConfigInvalidated && (
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <p>检测到旧版 FAL 配置（含 endpoint 或请求来源设置）已失效，请重新保存 FAL Key。</p>
+                    </div>
+                  </div>
+                )}
 
                 <KeyInput
                   id="fal-key"
@@ -366,59 +335,11 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   safetyNote={safetyNote}
                 />
 
-                <KeyInput
-                  id="fal-openai-key"
-                  label="OpenAI API Key（可选）"
-                  showKey={showFalOpenAIKey}
-                  onToggleShow={() => setShowFalOpenAIKey(!showFalOpenAIKey)}
-                  value={falConfig.openaiApiKey}
-                  onChange={(v) => setFalConfig({ ...falConfig, openaiApiKey: v })}
-                  placeholder="当使用 BYOK 模型时请输入 OpenAI Key"
-                  hint="仅当选择 FAL 的 BYOK 模型（如 gpt-image-1/byok）时需要填写。留空将尝试使用 OpenAI 供应商中的 Key。"
-                  safetyNote={safetyNote}
-                />
-
               </div>
-              <div className="shrink-0 p-4 pt-0 grid grid-cols-2 gap-2">
+              <div className="shrink-0 p-4 pt-0">
                 <Button onClick={handleSaveFal}>
                   <Save className="mr-2 h-4 w-4" />
                   保存配置
-                </Button>
-                <Button variant="outline" onClick={testFalConnection}>
-                  测试连接
-                </Button>
-              </div>
-              </div>
-            )}
-
-            {activeProvider === "system" && (
-              <div className="flex flex-col h-full">
-              <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                <div>
-                  <h3 className="text-base font-medium">系统设置</h3>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-sm">请求发送方式</Label>
-                  <Select
-                    value={requestOrigin}
-                    onValueChange={(value: "client" | "server") => setRequestOrigin(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择请求发送方式" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="client">客户端直连（默认）</SelectItem>
-                      <SelectItem value="server">通过服务器代理请求</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-              </div>
-              <div className="shrink-0 px-4 pb-4">
-                <Button onClick={handleSaveSystem}>
-                  <Save className="mr-2 h-4 w-4" />
-                  保存设置
                 </Button>
               </div>
               </div>

@@ -2,14 +2,16 @@ export interface ProviderConfig {
   id: string
   name: string
   apiKey: string
-  endpoint: string
+  endpoint?: string
   enabled: boolean
   requestOrigin?: "client" | "server"
   openaiApiKey?: string
 }
 
+export interface FalProviderConfig extends Omit<ProviderConfig, "endpoint" | "requestOrigin"> {}
+
 export interface ProviderSettings {
-  fal: ProviderConfig
+  fal: FalProviderConfig
   openai: ProviderConfig
   newapi: ProviderConfig
   openrouter: ProviderConfig
@@ -19,11 +21,8 @@ export interface ProviderSettings {
 const DEFAULT_PROVIDERS: ProviderSettings = {
   fal: {
     id: "fal",
-    name: "FAL Queue",
+    name: "FAL",
     apiKey: "",
-    endpoint: "https://queue.fal.run/fal-ai/flux/dev",
-    requestOrigin: "client",
-    openaiApiKey: "",
     enabled: false,
   },
   openai: {
@@ -61,6 +60,38 @@ const DEFAULT_PROVIDERS: ProviderSettings = {
 
 const STORAGE_KEY = "ai-image-tool-providers"
 const ENCRYPTION_KEY_NAME = "provider-encryption-key"
+const FAL_LEGACY_INVALIDATED_NOTICE_KEY = "ai-image-tool-fal-legacy-invalidated"
+
+function hasFalLegacyFields(config: unknown): boolean {
+  if (!config || typeof config !== "object") {
+    return false
+  }
+  const falConfig = config as Record<string, unknown>
+  return "endpoint" in falConfig || "requestOrigin" in falConfig
+}
+
+function setFalLegacyInvalidatedNotice(): void {
+  if (typeof window === "undefined") return
+  localStorage.setItem(FAL_LEGACY_INVALIDATED_NOTICE_KEY, "1")
+}
+
+function sanitizeFalConfig(config: unknown): { fal: FalProviderConfig; legacyInvalidated: boolean } {
+  if (!config || typeof config !== "object") {
+    return { fal: DEFAULT_PROVIDERS.fal, legacyInvalidated: false }
+  }
+
+  const falConfig = config as Record<string, unknown>
+  const legacyInvalidated = hasFalLegacyFields(falConfig)
+
+  return {
+    fal: {
+      ...DEFAULT_PROVIDERS.fal,
+      apiKey: typeof falConfig.apiKey === "string" ? falConfig.apiKey : DEFAULT_PROVIDERS.fal.apiKey,
+      enabled: typeof falConfig.enabled === "boolean" ? falConfig.enabled : DEFAULT_PROVIDERS.fal.enabled,
+    },
+    legacyInvalidated,
+  }
+}
 
 async function getEncryptionKey(): Promise<CryptoKey> {
   const keyData = localStorage.getItem(ENCRYPTION_KEY_NAME)
@@ -119,10 +150,15 @@ export async function loadProviderSettings(): Promise<ProviderSettings> {
   try {
     const decrypted = await decryptData(encrypted)
     const stored = JSON.parse(decrypted) as Partial<ProviderSettings>
+    const { fal, legacyInvalidated } = sanitizeFalConfig(stored?.fal)
+    if (legacyInvalidated) {
+      setFalLegacyInvalidatedNotice()
+    }
+
     return {
       ...DEFAULT_PROVIDERS,
       ...stored,
-      fal: { ...DEFAULT_PROVIDERS.fal, ...stored?.fal },
+      fal,
       openai: { ...DEFAULT_PROVIDERS.openai, ...stored?.openai },
       newapi: { ...DEFAULT_PROVIDERS.newapi, ...stored?.newapi },
       openrouter: { ...DEFAULT_PROVIDERS.openrouter, ...stored?.openrouter },
@@ -132,6 +168,15 @@ export async function loadProviderSettings(): Promise<ProviderSettings> {
     console.error("Failed to decrypt provider settings:", error)
     return DEFAULT_PROVIDERS
   }
+}
+
+export function consumeFalLegacyInvalidatedNotice(): boolean {
+  if (typeof window === "undefined") return false
+  const flagged = localStorage.getItem(FAL_LEGACY_INVALIDATED_NOTICE_KEY) === "1"
+  if (flagged) {
+    localStorage.removeItem(FAL_LEGACY_INVALIDATED_NOTICE_KEY)
+  }
+  return flagged
 }
 
 export async function updateProviderConfig(providerId: string, config: Partial<ProviderConfig>): Promise<void> {

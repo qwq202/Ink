@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import {
+  consumeFalLegacyInvalidatedNotice,
   loadProviderSettings,
   saveProviderSettings,
   type ProviderSettings,
@@ -25,6 +26,9 @@ function subscribe(subscriber: (settings: ProviderSettings | null) => void) {
 export function useProviderSettings() {
   const [settings, setSettings] = useState<ProviderSettings | null>(cachedSettings)
   const [isLoading, setIsLoading] = useState(!cachedSettings)
+  const [hasFalLegacyConfigInvalidated, setHasFalLegacyConfigInvalidated] = useState(() =>
+    consumeFalLegacyInvalidatedNotice(),
+  )
   const { toast } = useToast()
 
   useEffect(() => {
@@ -36,12 +40,11 @@ export function useProviderSettings() {
           if (!isMounted) return
           setSettings(loaded)
           notifySubscribers(loaded)
+          setHasFalLegacyConfigInvalidated(consumeFalLegacyInvalidatedNotice())
         })
         .finally(() => {
           if (isMounted) setIsLoading(false)
         })
-    } else {
-      setIsLoading(false)
     }
 
     const unsubscribe = subscribe((updated) => {
@@ -52,6 +55,7 @@ export function useProviderSettings() {
       if (event.key === "ai-image-tool-providers") {
         const loaded = await loadProviderSettings()
         notifySubscribers(loaded)
+        setHasFalLegacyConfigInvalidated(consumeFalLegacyInvalidatedNotice())
       }
     }
 
@@ -107,5 +111,7 @@ export function useProviderSettings() {
     updateProvider,
     getProvider,
     getEnabledProviders,
+    hasFalLegacyConfigInvalidated,
+    dismissFalLegacyConfigNotice: () => setHasFalLegacyConfigInvalidated(false),
   }
 }
