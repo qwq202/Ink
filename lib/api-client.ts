@@ -1,6 +1,7 @@
 import type { ProviderConfig } from "./providers"
 import { logDebug } from "./logger"
 import { FAL_IMAGE_SIZE_ENUMS, parseImageSize } from "./image-utils"
+import { createBrowserFalClient } from "./fal-client"
 
 export interface GenerationParams {
   prompt: string
@@ -42,45 +43,18 @@ export interface GenerationResult {
 }
 
 async function callFalAPI(provider: ProviderConfig, params: GenerationParams): Promise<string[]> {
-  const normalizeEndpoint = (path: string) => path.replace(/\/$/, "")
   const isImg2ImgMode = Boolean(params.images?.length)
+  let modelId = params.modelId?.replace(/^\/+/, "") || "fal-ai/flux/dev"
 
-  const computeFalEndpoint = () => {
-    let fallbackModelId = params.modelId?.replace(/^\/+/, "")
-
-    if (!fallbackModelId) {
-      return normalizeEndpoint(provider.endpoint)
-    }
-
-    // 如果是 nano-banana-pro 且处于图生图模式，自动使用编辑端点
-    if (fallbackModelId === "fal-ai/nano-banana-pro" && isImg2ImgMode) {
-      fallbackModelId = "fal-ai/nano-banana-pro/edit"
-    }
-    
-    // 如果是 gemini-3-pro-image-preview 且处于图生图模式，自动使用编辑端点
-    if (fallbackModelId === "fal-ai/gemini-3-pro-image-preview" && isImg2ImgMode) {
-      fallbackModelId = "fal-ai/gemini-3-pro-image-preview/edit"
-    }
-
-    if (provider.endpoint) {
-      try {
-        const parsed = new URL(provider.endpoint)
-        return normalizeEndpoint(`${parsed.origin}/${fallbackModelId}`)
-      } catch {
-        const originMatch = provider.endpoint.match(/^https?:\/\/[^/]+/)
-        if (originMatch) {
-          return normalizeEndpoint(`${originMatch[0]}/${fallbackModelId}`)
-        }
-      }
-    }
-
-    return normalizeEndpoint(`https://queue.fal.run/${fallbackModelId}`)
+  if (modelId === "fal-ai/nano-banana-pro" && isImg2ImgMode) {
+    modelId = "fal-ai/nano-banana-pro/edit"
+  }
+  if (modelId === "fal-ai/gemini-3-pro-image-preview" && isImg2ImgMode) {
+    modelId = "fal-ai/gemini-3-pro-image-preview/edit"
   }
 
-  const baseEndpoint = computeFalEndpoint()
-
   const requestedImageSize = params.imageSize || "landscape_4_3"
-  const useAutoImageSize = Boolean(params.images?.length) && requestedImageSize === "auto"
+  const useAutoImageSize = isImg2ImgMode && requestedImageSize === "auto"
   let falImageSize: string | { width: number; height: number } | undefined
 
   if (!useAutoImageSize) {
@@ -110,32 +84,18 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
     payload.enable_safety_checker = params.safetyChecker
   }
 
-  if (params.images && params.images.length > 0) {
+  const falClient = createBrowserFalClient(provider.apiKey)
+
+  if (params.images?.length) {
     if (useAutoImageSize) {
       delete payload.image_size
     }
-    const toDataUrl = (file: File) =>
-      new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => {
-          if (typeof reader.result === "string") {
-            resolve(reader.result)
-          } else {
-            reject(new Error("无法读取图片数据"))
-          }
-        }
-        reader.onerror = () => reject(reader.error ?? new Error("读取图片数据失败"))
-        reader.readAsDataURL(file)
-      })
 
-    const imageDataUrls = await Promise.all(params.images.map((file) => toDataUrl(file)))
-    const primaryImageUrl = imageDataUrls[0]
+    const imageUrls = await Promise.all(params.images.map((file) => falClient.storage.upload(file)))
+    payload.image_url = imageUrls[0]
+    payload.image_urls = imageUrls
 
-    payload.image_url = primaryImageUrl
-    payload.image_urls = imageDataUrls
-    const isClarityUpscaler = baseEndpoint.includes("clarity-upscaler")
-
-    if (isClarityUpscaler) {
+    if (modelId.includes("clarity-upscaler")) {
       delete payload.image_size
       delete payload.num_images
     }
@@ -148,45 +108,23 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
       payload.negative_prompt = "(worst quality, low quality, normal quality:2)"
     }
 
-    if (payload.upscale_factor == null) {
-      payload.upscale_factor = 2
-    }
-
-    if (payload.creativity == null) {
-      payload.creativity = 0.35
-    }
-
-    if (payload.resemblance == null) {
-      payload.resemblance = 0.6
-    }
-
-    if (payload.guidance_scale == null) {
-      payload.guidance_scale = 4
-    }
-
-    if (isClarityUpscaler) {
-      payload.num_inference_steps = payload.num_inference_steps ?? 18
-    } else if (payload.num_inference_steps == null) {
-      payload.num_inference_steps = 18
-    }
-
-    if (payload.enable_safety_checker == null) {
-      payload.enable_safety_checker = true
-    }
-
+    payload.upscale_factor = payload.upscale_factor ?? 2
+    payload.creativity = payload.creativity ?? 0.35
+    payload.resemblance = payload.resemblance ?? 0.6
+    payload.guidance_scale = payload.guidance_scale ?? 4
+    payload.num_inference_steps = payload.num_inference_steps ?? 18
+    payload.enable_safety_checker = payload.enable_safety_checker ?? true
   }
 
   if (params.openaiApiKey) {
     payload.openai_api_key = params.openaiApiKey
   }
 
-  // nano-banana-pro 专用参数（包括 /edit 编辑模式）
-  const isNanoBananaPro = params.modelId === "fal-ai/nano-banana-pro" || params.modelId === "fal-ai/nano-banana-pro/edit"
+  const isNanoBananaPro = modelId === "fal-ai/nano-banana-pro" || modelId === "fal-ai/nano-banana-pro/edit"
   if (isNanoBananaPro) {
-    // 使用专用参数覆盖默认值
     if (params.falNanoBananaAspectRatio) {
       payload.aspect_ratio = params.falNanoBananaAspectRatio
-      delete payload.image_size // nano-banana-pro 使用 aspect_ratio 而不是 image_size
+      delete payload.image_size
     }
     if (params.falNanoBananaResolution) {
       payload.resolution = params.falNanoBananaResolution
@@ -194,23 +132,18 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
     if (params.falNanoBananaOutputFormat) {
       payload.output_format = params.falNanoBananaOutputFormat
     }
-    
-    // 图生图模式下，nano-banana-pro/edit 需要使用 image_urls 而不是 image_url
     if (isImg2ImgMode && payload.image_urls) {
-      delete payload.image_url // 删除单图参数，只保留 image_urls
-      // 编辑模式下的特定参数调整
-      delete payload.enable_safety_checker // 编辑模式不支持 safety checker
-      delete payload.seed // 编辑模式不支持 seed
+      delete payload.image_url
+      delete payload.enable_safety_checker
+      delete payload.seed
     }
   }
 
-  // gemini-3-pro-image-preview 专用参数（Nano Banana 2，包括 /edit 编辑模式）
-  const isGemini3ProPreview = params.modelId === "fal-ai/gemini-3-pro-image-preview" || params.modelId === "fal-ai/gemini-3-pro-image-preview/edit"
+  const isGemini3ProPreview = modelId === "fal-ai/gemini-3-pro-image-preview" || modelId === "fal-ai/gemini-3-pro-image-preview/edit"
   if (isGemini3ProPreview) {
-    // 使用专用参数覆盖默认值
     if (params.falGemini3ProAspectRatio) {
       payload.aspect_ratio = params.falGemini3ProAspectRatio
-      delete payload.image_size // gemini-3-pro-image-preview 使用 aspect_ratio 而不是 image_size
+      delete payload.image_size
     }
     if (params.falGemini3ProResolution) {
       payload.resolution = params.falGemini3ProResolution
@@ -218,10 +151,8 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
     if (params.falGemini3ProOutputFormat) {
       payload.output_format = params.falGemini3ProOutputFormat
     }
-    
-    // 图生图模式下，gemini-3-pro-image-preview/edit 需要使用 image_urls 而不是 image_url
     if (isImg2ImgMode && payload.image_urls) {
-      delete payload.image_url // 删除单图参数，只保留 image_urls
+      delete payload.image_url
     }
   }
 
@@ -229,16 +160,13 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
     message: "FAL request dispatch",
     details: {
       provider: provider.id,
-      endpoint: provider.endpoint,
-      resolvedEndpoint: baseEndpoint,
-      mode: params.images && params.images.length > 0 ? "img2img" : "txt2img",
+      mode: isImg2ImgMode ? "img2img" : "txt2img",
       promptPreview: params.prompt.substring(0, 120),
       promptLength: params.prompt.length,
       numImages: params.numImages,
-      syncMode: payload.sync_mode,
-      hasImageInput: Boolean(params.images?.length),
-      modelId: params.modelId,
-      requestOrigin: provider.requestOrigin ?? "client",
+      syncMode: params.syncMode ?? true,
+      hasImageInput: isImg2ImgMode,
+      modelId,
       ...(isNanoBananaPro && {
         nanoBananaPro: {
           aspectRatio: params.falNanoBananaAspectRatio,
@@ -249,399 +177,97 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
     },
   })
 
-  const useServerProxy = (provider.requestOrigin ?? "client") === "server"
+  const extractImageUrls = (result: unknown): string[] => {
+    if (!result) return []
+    if (typeof result === "string") return [result]
+    if (Array.isArray(result)) {
+      return result.flatMap((item) => extractImageUrls(item))
+    }
+    if (typeof result !== "object") return []
 
-  const executeFalRequest = async () => {
-    if (useServerProxy) {
-      const response = await fetch("/api/fal/proxy", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          endpoint: baseEndpoint,
-          apiKey: provider.apiKey,
-          resource: "generate",
-          payload,
-        }),
-      })
+    const record = result as Record<string, unknown>
+    const urls: string[] = []
 
-      const raw = await response.text()
-      let parsed: any = null
-      if (raw) {
-        try {
-          parsed = JSON.parse(raw)
-        } catch {
-          parsed = { raw }
-        }
+    for (const key of ["url", "uri", "image", "image_url", "signed_url", "signedUrl", "download_url", "downloadUrl", "file_url"]) {
+      const value = record[key]
+      if (typeof value === "string" && value) {
+        urls.push(value)
       }
-
-      return { response, data: parsed }
     }
 
-    const response = await fetch(baseEndpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Key ${provider.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    })
+    if (typeof record.b64_json === "string" && record.b64_json) {
+      urls.push(`data:image/png;base64,${record.b64_json}`)
+    }
 
-    const data = await response.json().catch(async () => {
-      const fallback = await response.text()
-      throw new Error(fallback || "FAL API 返回了无效的响应。")
-    })
+    for (const key of ["image", "images", "data", "output", "result", "contents", "items", "file", "files"]) {
+      if (record[key] != null) {
+        urls.push(...extractImageUrls(record[key]))
+      }
+    }
 
-    return { response, data }
+    return Array.from(new Set(urls))
   }
 
-  const { response, data } = await executeFalRequest()
+  try {
+    const result = await falClient.subscribe(modelId as any, {
+      input: payload,
+      logs: true,
+      mode: "polling",
+      pollInterval: 1000,
+      timeout: 4 * 60 * 1000,
+      onEnqueue: (requestId) => {
+        void logDebug({
+          message: "FAL request enqueued",
+          details: {
+            provider: provider.id,
+            modelId,
+            requestId,
+          },
+        })
+      },
+      onQueueUpdate: (update) => {
+        void logDebug({
+          message: "FAL queue status updated",
+          details: {
+            provider: provider.id,
+            modelId,
+            requestId: update.request_id,
+            status: update.status,
+            position: "queue_position" in update ? update.queue_position : undefined,
+          },
+        })
+      },
+    })
 
-  await logDebug({
-    message: "FAL initial response received",
-    details: {
-      provider: provider.id,
-      status: response.status,
-      ok: response.ok,
-      requestId: data?.request_id,
-    },
-  })
+    const images = extractImageUrls(result.data)
+    if (!images.length) {
+      throw new Error("FAL API 未返回图像结果。")
+    }
 
-  if (!response.ok) {
-    const detail = data?.error || data?.message || data?.detail || "未知错误"
+    await logDebug({
+      message: "FAL request completed with images",
+      details: {
+        provider: provider.id,
+        modelId,
+        requestId: result.requestId,
+        imageCount: images.length,
+      },
+    })
+
+    const targetCount = typeof params.numImages === "number" && params.numImages > 0 ? params.numImages : undefined
+    return targetCount && images.length >= targetCount ? images.slice(0, targetCount) : images
+  } catch (error) {
     await logDebug({
       level: "error",
       message: "FAL request failed",
       details: {
         provider: provider.id,
-        status: response.status,
-        detail,
+        modelId,
+        error: error instanceof Error ? error.message : String(error),
       },
     })
-    throw new Error(`FAL API error: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`)
+    throw error instanceof Error ? error : new Error("FAL 请求失败")
   }
-
-  const pollFalQueue = async (requestId: string): Promise<any> => {
-    const statusUrl = `${baseEndpoint}/requests/${requestId}/status`
-    const resultUrl = `${baseEndpoint}/requests/${requestId}`
-    const pollIntervalMs = 2000
-    const maxPollDurationMs = 4 * 60 * 1000 // allow up to 4 minutes for long-running queues
-    const maxAttempts = Math.max(30, Math.ceil(maxPollDurationMs / pollIntervalMs))
-    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-    const proxyRequest = async (
-      resourceType: "status" | "result",
-      endpointCandidate: string,
-      fallbackAttempted = false,
-    ): Promise<{ response: Response; endpointUsed: string; resourceUsed: "status" | "result" }> => {
-      const response = await fetch("/api/fal/proxy", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          endpoint: endpointCandidate,
-          requestId,
-          apiKey: provider.apiKey,
-          resource: resourceType,
-        }),
-      })
-
-      if (!response.ok && !fallbackAttempted && (response.status === 404 || response.status === 405)) {
-        const segments = endpointCandidate.split("/")
-        if (segments.length > 4) {
-          const fallbackEndpoint = segments.slice(0, -1).join("/")
-          await logDebug({
-            message: "FAL proxy fallback endpoint",
-            details: {
-              originalEndpoint: endpointCandidate,
-              fallbackEndpoint,
-              resourceType,
-              responseStatus: response.status,
-              resourceUsed: resourceType,
-            },
-          })
-          return await proxyRequest(resourceType, fallbackEndpoint, true)
-        }
-      }
-
-      return { response, endpointUsed: endpointCandidate, resourceUsed: resourceType }
-    }
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      let { response: statusResponse, endpointUsed: statusEndpoint, resourceUsed } = await proxyRequest(
-        "status",
-        baseEndpoint,
-      )
-
-      if (statusResponse.status === 405) {
-        await logDebug({
-          message: "FAL status endpoint returned 405, retrying with result endpoint",
-          details: {
-            provider: provider.id,
-            requestId,
-            attempt: attempt + 1,
-            endpoint: statusEndpoint,
-          },
-        })
-
-        const fallbackStatus = await proxyRequest("result", baseEndpoint)
-        statusResponse = fallbackStatus.response
-        statusEndpoint = fallbackStatus.endpointUsed
-        resourceUsed = fallbackStatus.resourceUsed
-      }
-
-      if (!statusResponse.ok) {
-        const statusText = await statusResponse.text()
-        await logDebug({
-          level: "error",
-          message: "FAL queue status fetch failed",
-          details: {
-            provider: provider.id,
-            requestId,
-            attempt: attempt + 1,
-            status: statusResponse.status,
-            body: statusText,
-            endpoint: statusEndpoint,
-            resourceUsed,
-          },
-        })
-        throw new Error(statusText || "FAL 队列状态查询失败。")
-      }
-
-      const statusData = await statusResponse.json().catch(() => ({}))
-      const status = (statusData?.status || statusData?.state || "").toString().toLowerCase()
-
-      await logDebug({
-        message: "FAL queue status polled",
-        details: {
-          provider: provider.id,
-          requestId,
-          attempt: attempt + 1,
-          status,
-          endpoint: statusEndpoint,
-        },
-      })
-
-      if (status === "completed" || status === "succeeded" || status === "success") {
-        const { response: resultResponse, endpointUsed: resultEndpoint } = await proxyRequest("result", baseEndpoint)
-
-        if (!resultResponse.ok) {
-          const resultText = await resultResponse.text()
-          await logDebug({
-            level: "error",
-            message: "FAL queue result fetch failed",
-            details: {
-              provider: provider.id,
-              requestId,
-              status: resultResponse.status,
-              body: resultText,
-              endpoint: resultEndpoint,
-            },
-          })
-          throw new Error(resultText || "FAL 队列结果获取失败。")
-        }
-
-        const resultData = await resultResponse.json()
-
-        await logDebug({
-          message: "FAL queue result received",
-          details: {
-            provider: provider.id,
-            requestId,
-            endpoint: resultEndpoint,
-            imageCount: Array.isArray(resultData?.images) ? resultData.images.length : undefined,
-          },
-        })
-
-        return resultData
-      }
-
-      if (status === "failed" || status === "error") {
-        const reason = statusData?.error || statusData?.message || "FAL 队列任务执行失败。"
-        await logDebug({
-          level: "error",
-          message: "FAL queue task failed",
-          details: {
-            provider: provider.id,
-            requestId,
-            reason,
-          },
-        })
-        throw new Error(typeof reason === "string" ? reason : JSON.stringify(reason))
-      }
-
-      await delay(pollIntervalMs)
-    }
-
-    await logDebug({
-      level: "warn",
-      message: "FAL queue polling timed out",
-      details: {
-        provider: provider.id,
-        requestId,
-        maxAttempts,
-      },
-    })
-
-    throw new Error("FAL 队列等待超时，请稍后重试或手动查询。")
-  }
-
-  const extractImageUrls = (result: unknown): string[] => {
-    if (!result) return []
-
-    if (typeof result === "string") {
-      return [result]
-    }
-
-    if (Array.isArray(result)) {
-      return result.flatMap((item) => extractImageUrls(item))
-    }
-
-    if (typeof result === "object") {
-      const record = result as Record<string, unknown>
-      const urls: string[] = []
-
-      const directKeys = [
-        "url",
-        "uri",
-        "image",
-        "image_url",
-        "signed_url",
-        "signedUrl",
-        "download_url",
-        "downloadUrl",
-        "file_url",
-      ]
-      for (const key of directKeys) {
-        const value = record[key]
-        if (typeof value === "string" && value) {
-          urls.push(value)
-        }
-      }
-
-      if (typeof record.b64_json === "string" && record.b64_json) {
-        urls.push(`data:image/png;base64,${record.b64_json}`)
-      }
-
-      const nestedKeys = ["image", "images", "data", "output", "result", "contents", "items", "file", "files"]
-      for (const key of nestedKeys) {
-        if (record[key] != null) {
-          urls.push(...extractImageUrls(record[key]))
-        }
-      }
-
-      return Array.from(new Set(urls))
-    }
-
-    return []
-  }
-
-  const imageCandidates = [
-    ...extractImageUrls(data?.images),
-    ...extractImageUrls(data?.image),
-    ...extractImageUrls(data?.output),
-    ...extractImageUrls(data?.result?.images),
-    ...extractImageUrls(data?.result?.image),
-    ...extractImageUrls(data?.result),
-  ].filter(Boolean)
-
-  const images = Array.from(new Set(imageCandidates))
-
-  if (images.length === 0) {
-    if (data?.request_id) {
-      const queueData = await pollFalQueue(data.request_id)
-      await logDebug({
-        message: "FAL queue final payload",
-        details: {
-          provider: provider.id,
-          requestId: data.request_id,
-          status: queueData?.status,
-          keys: queueData ? Object.keys(queueData) : null,
-        },
-      })
-
-      const queueImages = [
-        ...extractImageUrls(queueData?.images),
-        ...extractImageUrls(queueData?.image),
-        ...extractImageUrls(queueData?.output),
-        ...extractImageUrls(queueData?.result?.images),
-        ...extractImageUrls(queueData?.result?.image),
-        ...extractImageUrls(queueData?.result),
-      ].filter(Boolean)
-
-      if (queueImages.length > 0) {
-        await logDebug({
-          message: "FAL queue images returned after polling",
-          details: {
-            provider: provider.id,
-            requestId: data.request_id,
-            imageCount: queueImages.length,
-          },
-        })
-        // 对于 FAL 队列结果，保持返回的图片数量与后端一致，不再做去重，
-        // 否则当 FAL 返回的多张图片指向相同地址时，Set 去重会导致前端看到的数量少于 num_images。
-        const targetCount = typeof params.numImages === "number" && params.numImages > 0 ? params.numImages : undefined
-        const finalImages =
-          targetCount && queueImages.length >= targetCount
-            ? queueImages.slice(0, targetCount)
-            : queueImages
-
-        return finalImages
-      }
-
-      const queueError = queueData?.error || queueData?.message
-      if (queueError) {
-        await logDebug({
-          level: "error",
-          message: "FAL queue reported error",
-          details: {
-            provider: provider.id,
-            requestId: data.request_id,
-            error: queueError,
-          },
-        })
-        throw new Error(
-          typeof queueError === "string"
-            ? "FAL 请求失败: " + queueError
-            : "FAL 请求失败: " + JSON.stringify(queueError),
-        )
-      }
-
-      await logDebug({
-        level: "warn",
-        message: "FAL queue finished without images",
-        details: {
-          provider: provider.id,
-          requestId: data.request_id,
-          status: queueData?.status,
-          imagePreview: Array.isArray(queueData?.images)
-            ? queueData.images.slice(0, 1)
-            : typeof queueData?.images === "object"
-            ? queueData.images
-            : undefined,
-        },
-      })
-
-      throw new Error(
-        "FAL 队列未返回图像结果，状态: " + (queueData?.status || "未知") + "。Request ID: " + data.request_id,
-      )
-    }
-
-    throw new Error("FAL API 未返回图像结果。")
-  }
-
-  await logDebug({
-    message: "FAL request completed with images",
-    details: {
-      provider: provider.id,
-      imageCount: images.length,
-      requestId: data?.request_id,
-    },
-  })
-
-  return images
 }
 
 async function callOpenAIAPI(provider: ProviderConfig, params: GenerationParams): Promise<string[]> {

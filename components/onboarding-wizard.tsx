@@ -51,7 +51,7 @@ export function OnboardingWizard({
             点击右上角的设置图标，配置你的 API 密钥。<span className="font-medium text-gray-900">请至少启用并保存 1 个供应商</span>，否则无法开始生成。
           </p>
           <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="p-2 bg-gray-50 rounded">FAL Queue · 多模型，速度快</div>
+            <div className="p-2 bg-gray-50 rounded">FAL · 官方 SDK 接入</div>
             <div className="p-2 bg-gray-50 rounded">OpenAI · DALL·E / GPT-Image</div>
             <div className="p-2 bg-gray-50 rounded">NewAPI · 兼容 OpenAI 协议</div>
             <div className="p-2 bg-gray-50 rounded">OpenRouter · 模型选择丰富</div>
