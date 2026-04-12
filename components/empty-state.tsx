@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Sparkles, ImageIcon, Clock, ArrowRight } from "lucide-react"
-import { useOnboarding, type ExamplePrompt } from "@/hooks/use-onboarding"
+import { useOnboarding, type ExamplePrompt } from "@/domains/settings/hooks/use-onboarding"
 import { cn } from "@/lib/utils"
 
 interface EmptyStateProps {

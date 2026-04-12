@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { fetchNewApiModels } from "@/lib/api-client"
+import { fetchNewApiModels } from "@/domains/generation/lib/api-client"
 
 async function readRequestConfig(request: NextRequest) {
   const body = (await request.json()) as { endpoint?: string; apiKey?: string }

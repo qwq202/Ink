@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getNewApiImagesUrl, normalizeNewApiBaseUrl } from "@/lib/newapi-endpoint"
+import { getNewApiImagesUrl, normalizeNewApiBaseUrl } from "@/domains/newapi/lib/newapi-endpoint"
 
 export async function POST(request: NextRequest) {
   try {
