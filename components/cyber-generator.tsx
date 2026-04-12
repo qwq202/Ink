@@ -58,6 +58,20 @@ interface CyberGeneratorProps {
   onBack?: () => void
 }
 
+function resolveProviderIdFromResult(item: GenerationResult): string {
+  const explicitProviderId = item.params.providerId?.trim()
+  if (explicitProviderId) return explicitProviderId
+
+  const normalizedName = item.provider.trim().toLowerCase()
+  if (normalizedName.includes("openai")) return "openai"
+  if (normalizedName.includes("newapi")) return "newapi"
+  if (normalizedName.includes("openrouter")) return "openrouter"
+  if (normalizedName.includes("gemini")) return "gemini"
+  if (normalizedName.includes("fal")) return "fal"
+
+  return normalizedName
+}
+
 type SelectedImageState = {
   src: string
   width: number
@@ -557,11 +571,12 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
 
   const handleRegenerate = useCallback(
     async (item: GenerationResult) => {
-      const provider = getProviderFromSettings(item.provider.toLowerCase())
+      const providerId = resolveProviderIdFromResult(item)
+      const provider = getProviderFromSettings(providerId)
       if (!provider) {
         toast({
           title: "供应商不可用",
-          description: `无法找到供应商 ${item.provider}，请检查设置`,
+          description: `无法找到供应商 ${item.provider}（${providerId}），请检查设置`,
           variant: "destructive",
         })
         return
@@ -576,8 +591,9 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
   )
 
   const handleApplyParams = useCallback((item: GenerationResult) => {
+    const providerId = resolveProviderIdFromResult(item)
     setInitialPrompt(item.params.prompt)
-    setInitialParams({ ...item.params, providerId: item.provider.toLowerCase() } as Partial<GenerationParams>)
+    setInitialParams({ ...item.params, providerId } as Partial<GenerationParams>)
     setMode("txt2img")
     setActiveTab("generate")
     toast({
@@ -1003,7 +1019,10 @@ export function CyberGenerator({ onBack }: CyberGeneratorProps) {
                   <div className="flex gap-2 mt-3">
                     <Button size="sm" variant="outline" onClick={() => handleApplyParams(selectedHistoryItem)}>填入表单</Button>
                     <Button size="sm" variant="outline" onClick={() => {
-                      setVariantBaseParams({ ...(selectedHistoryItem.params as GenerationParams), providerId: selectedHistoryItem.provider.toLowerCase() })
+                      setVariantBaseParams({
+                        ...(selectedHistoryItem.params as GenerationParams),
+                        providerId: resolveProviderIdFromResult(selectedHistoryItem),
+                      })
                       setVariantDialogOpen(true)
                     }}>生成变体</Button>
                   </div>

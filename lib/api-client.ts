@@ -2,11 +2,15 @@ import type { ProviderConfig } from "./providers"
 import { logDebug } from "./logger"
 import { FAL_IMAGE_SIZE_ENUMS, parseImageSize } from "./image-utils"
 import { createBrowserFalClient } from "./fal-client"
+import { callOpenAIImageAPI } from "./openai-image-api"
+import { callOpenAIResponsesAPI } from "./openai-responses-api"
+import type { OpenAIAPIMode } from "./providers"
 
 export interface GenerationParams {
   prompt: string
   imageSize: string
   numImages: number
+  providerId?: string
   seed?: number
   safetyChecker?: boolean
   syncMode?: boolean
@@ -26,6 +30,15 @@ export interface GenerationParams {
   falGemini3ProAspectRatio?: "21:9" | "16:9" | "3:2" | "4:3" | "5:4" | "1:1" | "4:5" | "3:4" | "2:3" | "9:16"
   falGemini3ProResolution?: "1K" | "2K" | "4K"
   falGemini3ProOutputFormat?: "jpeg" | "png" | "webp"
+  // OpenAI
+  openaiApiMode?: OpenAIAPIMode
+  openaiPreviousResponseId?: string
+  openaiResponseId?: string
+  openaiImageQuality?: "standard" | "hd"
+  openaiImageStyle?: "vivid" | "natural"
+  openaiResponsesMode?: "text" | "image"
+  openaiResponsesMaxOutputTokens?: number
+  openaiResponsesTemperature?: number
 }
 
 export interface GenerationResult {
@@ -271,59 +284,14 @@ async function callFalAPI(provider: ProviderConfig, params: GenerationParams): P
 }
 
 async function callOpenAIAPI(provider: ProviderConfig, params: GenerationParams): Promise<string[]> {
-  const { width, height } = parseImageSize(params.imageSize)
-  const imageSizeString = `${width}x${height}`
+  const apiMode = params.openaiApiMode || provider.openaiApiMode || "image"
+  const effectiveMode: OpenAIAPIMode = apiMode === "responses" ? "responses" : "image"
 
-  await logDebug({
-    message: "OpenAI image request dispatch",
-    details: {
-      provider: provider.id,
-      endpoint: provider.endpoint,
-      promptPreview: params.prompt.substring(0, 120),
-      promptLength: params.prompt.length,
-      numImages: params.numImages,
-      imageSize: imageSizeString,
-    },
-  })
-
-  const response = await fetch(provider.endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${provider.apiKey}`,
-    },
-    body: JSON.stringify({
-      prompt: params.prompt,
-      n: params.numImages,
-      size: imageSizeString,
-      response_format: "url",
-    }),
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    await logDebug({
-      level: "error",
-      message: "OpenAI image request failed",
-      details: {
-        provider: provider.id,
-        status: response.status,
-        error: error?.error?.message || error,
-      },
-    })
-    throw new Error(`OpenAI API error: ${error.error?.message || "Unknown error"}`)
+  if (effectiveMode === "responses") {
+    return await callOpenAIResponsesAPI(provider, params)
   }
 
-  const data = await response.json()
-  await logDebug({
-    message: "OpenAI image request completed",
-    details: {
-      provider: provider.id,
-      status: response.status,
-      imageCount: Array.isArray(data?.data) ? data.data.length : undefined,
-    },
-  })
-  return data.data?.map((item: { url: string }) => item.url) || []
+  return await callOpenAIImageAPI(provider, params)
 }
 
 export async function generateImages(provider: ProviderConfig, params: GenerationParams): Promise<string[]> {

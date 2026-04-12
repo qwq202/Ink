@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Save, Eye, EyeOff, AlertTriangle } from "lucide-react"
 import { useProviderSettings } from "@/hooks/use-provider-settings"
 import { useToast } from "@/hooks/use-toast"
@@ -25,6 +26,57 @@ const PROVIDERS = [
   { id: "openrouter", label: "OpenRouter", desc: "OpenRouter 接口" },
   { id: "gemini", label: "Gemini", desc: "Google Gemini" },
 ] as const
+
+type OpenAIMode = "image" | "responses"
+
+const OPENAI_IMAGE_ENDPOINT_DEFAULT = "https://api.openai.com/v1/images/generations"
+const OPENAI_RESPONSES_ENDPOINT_DEFAULT = "https://api.openai.com/v1/responses"
+const OPENAI_ENDPOINT_PROFILE_KEY = "ai-image-openai-endpoint-profile"
+
+interface OpenAIEndpointProfile {
+  mode: OpenAIMode
+  imageEndpoint: string
+  responsesEndpoint: string
+}
+
+function normalizeEndpoint(value: string, fallback: string) {
+  const trimmed = value.trim()
+  return trimmed.length ? trimmed : fallback
+}
+
+function inferOpenAIMode(endpoint: string): OpenAIMode {
+  if (!endpoint) return "image"
+  if (endpoint.includes("/responses")) return "responses"
+  return "image"
+}
+
+function loadOpenAIEndpointProfile(): OpenAIEndpointProfile {
+  if (typeof window === "undefined") {
+    return {
+      mode: "image",
+      imageEndpoint: OPENAI_IMAGE_ENDPOINT_DEFAULT,
+      responsesEndpoint: OPENAI_RESPONSES_ENDPOINT_DEFAULT,
+    }
+  }
+  try {
+    const raw = localStorage.getItem(OPENAI_ENDPOINT_PROFILE_KEY)
+    if (!raw) throw new Error("no profile")
+
+    const parsed = JSON.parse(raw) as Partial<OpenAIEndpointProfile>
+    const mode: OpenAIMode = parsed.mode === "responses" ? "responses" : "image"
+    return {
+      mode,
+      imageEndpoint: normalizeEndpoint(parsed.imageEndpoint || "", OPENAI_IMAGE_ENDPOINT_DEFAULT),
+      responsesEndpoint: normalizeEndpoint(parsed.responsesEndpoint || "", OPENAI_RESPONSES_ENDPOINT_DEFAULT),
+    }
+  } catch {
+    return {
+      mode: "image",
+      imageEndpoint: OPENAI_IMAGE_ENDPOINT_DEFAULT,
+      responsesEndpoint: OPENAI_RESPONSES_ENDPOINT_DEFAULT,
+    }
+  }
+}
 
 function KeyInput({
   id,
@@ -101,7 +153,9 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
 
   const [openaiConfig, setOpenaiConfig] = useState({
     apiKey: "",
-    endpoint: "",
+    mode: "image" as OpenAIMode,
+    imageEndpoint: OPENAI_IMAGE_ENDPOINT_DEFAULT,
+    responsesEndpoint: OPENAI_RESPONSES_ENDPOINT_DEFAULT,
     enabled: false,
   })
 
@@ -137,8 +191,28 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
     }
   }
 
+  const saveOpenAIEndpointProfile = (next: OpenAIEndpointProfile) => {
+    if (typeof window === "undefined") return
+    localStorage.setItem(
+      OPENAI_ENDPOINT_PROFILE_KEY,
+      JSON.stringify({
+        ...next,
+        imageEndpoint: normalizeEndpoint(next.imageEndpoint, OPENAI_IMAGE_ENDPOINT_DEFAULT),
+        responsesEndpoint: normalizeEndpoint(next.responsesEndpoint, OPENAI_RESPONSES_ENDPOINT_DEFAULT),
+      }),
+    )
+  }
+
   useEffect(() => {
     if (!settings) return
+
+    const openAIProfile = loadOpenAIEndpointProfile()
+    const endpointFromConfig = settings.openai.endpoint ?? OPENAI_IMAGE_ENDPOINT_DEFAULT
+    const inferredMode = inferOpenAIMode(endpointFromConfig)
+    const imageEndpointFromConfig =
+      inferredMode === "image" ? endpointFromConfig : openAIProfile.imageEndpoint
+    const responsesEndpointFromConfig =
+      inferredMode === "responses" ? endpointFromConfig : openAIProfile.responsesEndpoint
 
     setFalConfig({
       apiKey: settings.fal.apiKey,
@@ -148,7 +222,9 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
 
     setOpenaiConfig({
       apiKey: settings.openai.apiKey,
-      endpoint: settings.openai.endpoint ?? "https://api.openai.com/v1/images/generations",
+      mode: settings.openai.openaiApiMode === "responses" ? "responses" : inferredMode === "responses" ? "responses" : openAIProfile.mode,
+      imageEndpoint: normalizeEndpoint(imageEndpointFromConfig, OPENAI_IMAGE_ENDPOINT_DEFAULT),
+      responsesEndpoint: normalizeEndpoint(responsesEndpointFromConfig, OPENAI_RESPONSES_ENDPOINT_DEFAULT),
       enabled: settings.openai.enabled,
     })
 
@@ -177,7 +253,22 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
   }
 
   const handleSaveOpenAI = async () => {
-    await updateProvider("openai", openaiConfig)
+    const imageEndpoint = normalizeEndpoint(openaiConfig.imageEndpoint, OPENAI_IMAGE_ENDPOINT_DEFAULT)
+    const responsesEndpoint = normalizeEndpoint(openaiConfig.responsesEndpoint, OPENAI_RESPONSES_ENDPOINT_DEFAULT)
+    const nextOpenAIEndpoint =
+      openaiConfig.mode === "responses" ? responsesEndpoint : imageEndpoint
+
+    saveOpenAIEndpointProfile({
+      mode: openaiConfig.mode,
+      imageEndpoint,
+      responsesEndpoint,
+    })
+    await updateProvider("openai", {
+      apiKey: openaiConfig.apiKey,
+      endpoint: nextOpenAIEndpoint,
+      openaiApiMode: openaiConfig.mode,
+      enabled: openaiConfig.enabled,
+    })
     toast({ title: "配置已保存", description: "OpenAI 配置已成功保存" })
   }
 
@@ -216,17 +307,36 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
   }
 
   const testOpenAIConnection = async () => {
+    const imageEndpoint = normalizeEndpoint(openaiConfig.imageEndpoint, OPENAI_IMAGE_ENDPOINT_DEFAULT)
+    const responsesEndpoint = normalizeEndpoint(openaiConfig.responsesEndpoint, OPENAI_RESPONSES_ENDPOINT_DEFAULT)
+    const endpoint =
+      openaiConfig.mode === "responses" ? responsesEndpoint : imageEndpoint
+
+    const requestHeaders = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${openaiConfig.apiKey}`,
+    }
+
     try {
-      const res = await fetch(openaiConfig.endpoint || "https://api.openai.com/v1/images/generations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${openaiConfig.apiKey}`,
-        },
-        body: JSON.stringify({ prompt: "ping", model: "gpt-image-1" }),
-      })
+      const init =
+        openaiConfig.mode === "responses"
+          ? {
+              method: "POST",
+              headers: requestHeaders,
+              body: JSON.stringify({ model: "gpt-4.1-mini", input: "ping", max_output_tokens: 16 }),
+            }
+          : {
+              method: "POST",
+              headers: requestHeaders,
+              body: JSON.stringify({ prompt: "ping", model: "gpt-image-1" }),
+            }
+
+      const res = await fetch(endpoint, init)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      toast({ title: "OpenAI 连接正常" })
+      toast({
+        title: "OpenAI 连接正常",
+        description: openaiConfig.mode === "responses" ? "Responses API 联通测试通过" : "Image API 联通测试通过",
+      })
     } catch (error) {
       toast({
         title: "OpenAI 连接失败",
@@ -366,6 +476,9 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                   <h3 className="text-base font-medium">OpenAI</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    支持 Image API 与 Responses API 两种模式，可分别配置端点并保存独立配置。
+                  </p>
                 </div>
 
                 <KeyInput
@@ -379,13 +492,51 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   safetyNote={safetyNote}
                 />
 
+                <div className="space-y-2">
+                  <Label className="text-sm">接口模式</Label>
+                  <ToggleGroup
+                    type="single"
+                    value={openaiConfig.mode}
+                    onValueChange={(value) => {
+                      if (value) {
+                        setOpenaiConfig((c) => ({ ...c, mode: value as OpenAIMode }))
+                      }
+                    }}
+                    className="w-full"
+                  >
+                    <ToggleGroupItem value="image" className="w-1/2">
+                      Image API
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="responses" className="w-1/2">
+                      Responses API
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                  <p className="text-xs text-muted-foreground">
+                    {openaiConfig.mode === "responses"
+                      ? "Responses 模式适配 /v1/responses 路径与会话式模型调用"
+                      : "Image API 模式适配 /v1/images/generations 路径"}
+                  </p>
+                </div>
+
                 <div className="space-y-1.5">
-                  <Label htmlFor="openai-endpoint" className="text-sm">API 地址</Label>
+                  <Label htmlFor="openai-image-endpoint" className="text-sm">Image API 端点</Label>
                   <Input
-                    id="openai-endpoint"
-                    placeholder="https://api.openai.com/v1/images/generations"
-                    value={openaiConfig.endpoint}
-                    onChange={(e) => setOpenaiConfig({ ...openaiConfig, endpoint: e.target.value })}
+                    id="openai-image-endpoint"
+                    placeholder={OPENAI_IMAGE_ENDPOINT_DEFAULT}
+                    value={openaiConfig.imageEndpoint}
+                    onChange={(e) => setOpenaiConfig((c) => ({ ...c, imageEndpoint: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="openai-responses-endpoint" className="text-sm">Responses API 端点</Label>
+                  <Input
+                    id="openai-responses-endpoint"
+                    placeholder={OPENAI_RESPONSES_ENDPOINT_DEFAULT}
+                    value={openaiConfig.responsesEndpoint}
+                    onChange={(e) =>
+                      setOpenaiConfig((c) => ({ ...c, responsesEndpoint: e.target.value }))
+                    }
                   />
                 </div>
 

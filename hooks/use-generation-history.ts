@@ -4,12 +4,30 @@ import { useState, useEffect, useCallback } from "react"
 import { loadJSON, saveJSON } from "@/lib/persist"
 import type { GenerationParams } from "@/lib/api-client"
 
+export type OpenAIApiMode = "image-api" | "responses-api"
+export type GenerationOperationType = "txt2img" | "img2img"
+
+export interface OpenAIResponseChainMetadata {
+  endpoint?: string
+  modelId?: string
+  openaiMode?: OpenAIApiMode
+  operationType?: GenerationOperationType
+  requestId?: string
+  temperature?: number
+  maxOutputTokens?: number
+  // 其他供应商/网关的链路信息可预留在此扩展
+  extras?: Record<string, string | number | boolean | null>
+}
+
 export interface GenerationHistoryItem {
   id: string
   timestamp: number
   prompt: string
   providerId: string
   modelId?: string
+  openaiMode?: OpenAIApiMode
+  operationType?: GenerationOperationType
+  responseChainMetadata?: OpenAIResponseChainMetadata
   params: Partial<GenerationParams>
   label?: string // 用户自定义的标签名称
   sourceImages?: string[] // 图生图模式下的原图（base64 格式）

@@ -1,3 +1,5 @@
+export type OpenAIAPIMode = "image" | "responses"
+
 export interface ProviderConfig {
   id: string
   name: string
@@ -6,6 +8,7 @@ export interface ProviderConfig {
   enabled: boolean
   requestOrigin?: "client" | "server"
   openaiApiKey?: string
+  openaiApiMode?: OpenAIAPIMode
 }
 
 export interface FalProviderConfig extends Omit<ProviderConfig, "endpoint" | "requestOrigin"> {}
@@ -30,6 +33,7 @@ const DEFAULT_PROVIDERS: ProviderSettings = {
     name: "OpenAI Images",
     apiKey: "",
     endpoint: "https://api.openai.com/v1/images/generations",
+    openaiApiMode: "image",
     enabled: false,
   },
   newapi: {
@@ -68,6 +72,29 @@ function hasFalLegacyFields(config: unknown): boolean {
   }
   const falConfig = config as Record<string, unknown>
   return "endpoint" in falConfig || "requestOrigin" in falConfig
+}
+
+function normalizeOpenAIConfig(config: unknown): Omit<ProviderConfig, "id" | "name"> {
+  if (!config || typeof config !== "object") {
+    return DEFAULT_PROVIDERS.openai
+  }
+
+  const openAIConfig = config as Record<string, unknown>
+
+  return {
+    ...DEFAULT_PROVIDERS.openai,
+    apiKey: typeof openAIConfig.apiKey === "string" ? openAIConfig.apiKey : DEFAULT_PROVIDERS.openai.apiKey,
+    endpoint:
+      typeof openAIConfig.endpoint === "string" && openAIConfig.endpoint.trim()
+        ? openAIConfig.endpoint.trim()
+        : DEFAULT_PROVIDERS.openai.endpoint,
+    requestOrigin:
+      openAIConfig.requestOrigin === "client" || openAIConfig.requestOrigin === "server"
+        ? openAIConfig.requestOrigin
+        : DEFAULT_PROVIDERS.openai.requestOrigin,
+    enabled: typeof openAIConfig.enabled === "boolean" ? openAIConfig.enabled : DEFAULT_PROVIDERS.openai.enabled,
+    openaiApiMode: openAIConfig.openaiApiMode === "responses" ? "responses" : "image",
+  }
 }
 
 function setFalLegacyInvalidatedNotice(): void {
@@ -161,7 +188,11 @@ export async function loadProviderSettings(): Promise<ProviderSettings> {
       ...DEFAULT_PROVIDERS,
       ...stored,
       fal,
-      openai: { ...DEFAULT_PROVIDERS.openai, ...stored?.openai },
+      openai: {
+        ...normalizeOpenAIConfig(stored?.openai),
+        id: "openai",
+        name: "OpenAI Images",
+      },
       newapi: { ...DEFAULT_PROVIDERS.newapi, ...stored?.newapi },
       openrouter: { ...DEFAULT_PROVIDERS.openrouter, ...stored?.openrouter },
       gemini: { ...DEFAULT_PROVIDERS.gemini, ...stored?.gemini },
