@@ -60,9 +60,11 @@ pnpm start
 
 ### NewAPI
 - `API Key` 或 `用户 Token`：根据服务端要求填写，表单会同时支持 `Authorization` 与 `New-Api-User` 头。
-- `API 端点`：需要指向 `.../images/generations`，可选填 `编辑端点` 用于图片编辑任务。
+- `API 端点`：填写 NewAPI 服务的基础地址，例如 `https://your-newapi-host`；应用会自动拼接 `/v1/images/generations` 与 `/v1/images/edits`。
 - `User ID`：部分服务需要额外的用户标识。
 - “获取模型列表”按钮会访问 `{baseOrigin}/api/models`，拉取渠道信息并通过通知提示数量。
+- 当前已按 NewAPI 文档适配 OpenAI Images 兼容模型：`gpt-image-1`、`dall-e-3`、`dall-e-2`。
+- 其中 `gpt-image-1` 支持 `background` 与 `moderation` 参数；`dall-e-3` 仅支持文生图；OpenAI 兼容编辑模式建议使用单张方形 PNG 原图。
 
 ### 存储与安全
 - 所有供应商配置写入浏览器 localStorage，写入前使用 AES-GCM 加密并缓存密钥。

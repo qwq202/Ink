@@ -5,6 +5,13 @@ import { createBrowserFalClient } from "./fal-client"
 import { callOpenAIImageAPI } from "./openai-image-api"
 import { callOpenAIResponsesAPI } from "./openai-responses-api"
 import type { OpenAIAPIMode } from "./providers"
+import {
+  isNewApiGeminiModel,
+  normalizeNewApiModel,
+  supportsNewApiBackground,
+  supportsNewApiModeration,
+  supportsNewApiStyle,
+} from "./newapi-openai-compat"
 
 export interface GenerationParams {
   prompt: string
@@ -18,6 +25,8 @@ export interface GenerationParams {
   modelId?: string
   quality?: string
   style?: string
+  background?: "auto" | "transparent" | "opaque"
+  moderation?: "auto" | "low"
   thinkingLevel?: "low" | "high"
   mediaResolution?: "media_resolution_low" | "media_resolution_medium" | "media_resolution_high"
   aspectRatio?: "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "4:5" | "5:4" | "9:16" | "16:9" | "21:9"
@@ -309,20 +318,8 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
   }
 
   async function callNewAPI(): Promise<string[]> {
-    const allowedModels = ["gpt-image-1", "dall-e-3", "dall-e-2"]
-    const normalizeModel = (modelId?: string) => {
-      if (!modelId) return "gpt-image-1"
-      const lower = modelId.toLowerCase()
-      if (allowedModels.includes(lower)) return lower
-      if (lower.startsWith("gemini")) return lower // 直接透传 gemini-* 模型
-      // 尝试粗略匹配
-      if (lower.includes("gpt-image-1")) return "gpt-image-1"
-      if (lower.includes("dall-e-3")) return "dall-e-3"
-      if (lower.includes("dall-e-2")) return "dall-e-2"
-      return "gpt-image-1"
-    }
-    const newapiModel = normalizeModel(params.modelId)
-    const responseFormat = newapiModel === "gpt-image-1" || newapiModel.startsWith("gemini") ? "b64_json" : "url"
+    const newapiModel = normalizeNewApiModel(params.modelId)
+    const responseFormat = newapiModel === "gpt-image-1" || isNewApiGeminiModel(newapiModel) ? "b64_json" : "url"
     const useServerProxy = (provider.requestOrigin ?? "server") === "server"
     const maxAttempts = 3
     const retryDelay = (attempt: number) =>
@@ -340,6 +337,15 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
 
       if (params.quality) {
         formData.append("quality", params.quality)
+      }
+      if (params.background && supportsNewApiBackground(newapiModel)) {
+        formData.append("background", params.background)
+      }
+      if (params.moderation && supportsNewApiModeration(newapiModel)) {
+        formData.append("moderation", params.moderation)
+      }
+      if (params.style && supportsNewApiStyle(newapiModel)) {
+        formData.append("style", params.style)
       }
       
       // Use image[] for multiple images, image for single image
@@ -494,12 +500,18 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
           formData.append("quality", params.quality)
         }
 
-        if (params.style && newapiModel === "dall-e-3") {
+        if (params.style && supportsNewApiStyle(newapiModel)) {
           formData.append("style", params.style)
+        }
+        if (params.background && supportsNewApiBackground(newapiModel)) {
+          formData.append("background", params.background)
+        }
+        if (params.moderation && supportsNewApiModeration(newapiModel)) {
+          formData.append("moderation", params.moderation)
         }
 
         // Gemini 特定参数
-        if (newapiModel.startsWith("gemini")) {
+        if (isNewApiGeminiModel(newapiModel)) {
           if (params.thinkingLevel) {
             formData.append("thinking_level", params.thinkingLevel)
           }
@@ -536,8 +548,14 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
         requestBody.quality = params.quality
       }
 
-      if (params.style && newapiModel === "dall-e-3") {
+      if (params.style && supportsNewApiStyle(newapiModel)) {
         requestBody.style = params.style
+      }
+      if (params.background && supportsNewApiBackground(newapiModel)) {
+        requestBody.background = params.background
+      }
+      if (params.moderation && supportsNewApiModeration(newapiModel)) {
+        requestBody.moderation = params.moderation
       }
 
       return fetch(generationEndpoint, {

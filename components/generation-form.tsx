@@ -56,6 +56,19 @@ import {
   type OpenAIModelMode,
   type OpenAIResponsesMode,
 } from "@/lib/openai-form-utils"
+import {
+  getNewApiImageSizeOptions,
+  getNewApiSafeNumImages,
+  getNewApiSafeQuality,
+  isNewApiGeminiModel,
+  isNewApiOpenAICompatModel,
+  supportsNewApiBackground,
+  supportsNewApiEdits,
+  supportsNewApiModeration,
+  supportsNewApiStyle,
+  type NewApiBackground,
+  type NewApiModeration,
+} from "@/lib/newapi-openai-compat"
 import type { OpenAIApiMode, GenerationOperationType, OpenAIResponseChainMetadata } from "@/hooks/use-generation-history"
 
 function normalizeEndpointValue(value: string, fallback: string) {
@@ -159,6 +172,8 @@ export function GenerationForm({
   const newapiPrevSearchRef = useRef("")
   const [newapiQuality, setNewapiQuality] = useState<string>("standard")
   const [newapiStyle, setNewapiStyle] = useState<string>("vivid")
+  const [newapiBackground, setNewapiBackground] = useState<NewApiBackground>("auto")
+  const [newapiModeration, setNewapiModeration] = useState<NewApiModeration>("auto")
   // OpenAI states
   const [openAIMode, setOpenAIMode] = useState<OpenAIModelMode>("image")
   const [openAIModel, setOpenAIModel] = useState<string>("gpt-image-1.5")
@@ -278,6 +293,8 @@ export function GenerationForm({
     if (initialParams.syncMode !== undefined) setSyncMode(initialParams.syncMode)
     if (initialParams.quality) setNewapiQuality(initialParams.quality as any)
     if (initialParams.style) setNewapiStyle(initialParams.style as any)
+    if (initialParams.background) setNewapiBackground(initialParams.background as NewApiBackground)
+    if (initialParams.moderation) setNewapiModeration(initialParams.moderation as NewApiModeration)
     if (initialParams.thinkingLevel) setGeminiThinkingLevel(initialParams.thinkingLevel)
     if (initialParams.mediaResolution) setGeminiMediaResolution(initialParams.mediaResolution)
     if (initialParams.aspectRatio) setGeminiAspectRatio(initialParams.aspectRatio as any)
@@ -757,6 +774,15 @@ export function GenerationForm({
 
     // NewAPI size options based on model
     if (safeSelectedProvider === "newapi") {
+      const openAICompatSizeOptions = getNewApiImageSizeOptions({
+        modelId: selectedNewapiModel,
+        generationMode: mode,
+        customAppliedValue,
+      })
+      if (openAICompatSizeOptions) {
+        return openAICompatSizeOptions
+      }
+
       if (selectedNewapiModel === "dall-e-2") {
         const options = [
           { value: "256x256", label: "小图 · 256 x 256" },
@@ -876,14 +902,8 @@ export function GenerationForm({
   // Auto-adjust NewAPI quality when model changes
   const safeNewapiQuality = useMemo(() => {
     if (safeSelectedProvider !== "newapi") return newapiQuality
-    if (selectedNewapiModel === "dall-e-3") {
-      return ["standard", "hd"].includes(newapiQuality) ? newapiQuality : "standard"
-    }
-    if (selectedNewapiModel === "gpt-image-1") {
-      return ["auto", "low", "medium", "high"].includes(newapiQuality) ? newapiQuality : "auto"
-    }
-    if (selectedNewapiModel === "dall-e-2") {
-      return "standard"
+    if (isNewApiOpenAICompatModel(selectedNewapiModel)) {
+      return getNewApiSafeQuality(selectedNewapiModel, newapiQuality)
     }
     return newapiQuality
   }, [newapiQuality, selectedNewapiModel, safeSelectedProvider])
@@ -896,8 +916,8 @@ export function GenerationForm({
         numImages,
       })
     }
-    if (safeSelectedProvider === "newapi" && selectedNewapiModel === "dall-e-3") {
-      return Math.min(numImages, 1)
+    if (safeSelectedProvider === "newapi" && isNewApiOpenAICompatModel(selectedNewapiModel)) {
+      return getNewApiSafeNumImages(selectedNewapiModel, numImages)
     }
     return numImages
   }, [numImages, selectedNewapiModel, safeSelectedProvider, openAIMode, openAIModel])
@@ -926,6 +946,8 @@ export function GenerationForm({
       setSelectedNewapiModel("dall-e-2")
       setNewapiQuality("standard")
       setNewapiStyle("vivid")
+      setNewapiBackground("auto")
+      setNewapiModeration("auto")
       setOpenAIMode("image")
       setOpenAIModel("gpt-image-1.5")
       setOpenAIImageQuality("standard")
@@ -958,6 +980,8 @@ export function GenerationForm({
     setSelectedNewapiModel("dall-e-2")
     setNewapiQuality("standard")
     setNewapiStyle("vivid")
+    setNewapiBackground("auto")
+    setNewapiModeration("auto")
     setOpenAIMode("image")
     setOpenAIModel("gpt-image-1.5")
     setOpenAIImageQuality("standard")
@@ -1152,16 +1176,18 @@ export function GenerationForm({
         syncMode: provider.id === "fal" && !selectedFalCapability.supportsSyncMode ? undefined : syncMode,
         quality: provider.id === "newapi" ? safeNewapiQuality : undefined,
         style: provider.id === "newapi" ? newapiStyle : undefined,
+        background: provider.id === "newapi" && supportsNewApiBackground(selectedNewapiModel) ? newapiBackground : undefined,
+        moderation: provider.id === "newapi" && supportsNewApiModeration(selectedNewapiModel) ? newapiModeration : undefined,
         thinkingLevel: (
-          (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+          (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
           (provider.id === "gemini" && selectedGeminiModel.includes("pro"))
         ) ? geminiThinkingLevel : undefined,
         mediaResolution: (
-          (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+          (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
           provider.id === "gemini"
         ) ? geminiMediaResolution : undefined,
         aspectRatio: (
-          (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+          (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
           provider.id === "gemini"
         ) ? geminiAspectRatio : undefined,
         falNanoBananaAspectRatio: isNanoBananaProSelected ? falNanoBananaAspectRatio : undefined,
@@ -1206,6 +1232,8 @@ export function GenerationForm({
     syncMode,
     safeNewapiQuality,
     newapiStyle,
+    newapiBackground,
+    newapiModeration,
     geminiThinkingLevel,
     geminiMediaResolution,
     geminiAspectRatio,
@@ -1298,6 +1326,8 @@ export function GenerationForm({
     if (params.syncMode !== undefined) setSyncMode(params.syncMode)
     if (params.quality) setNewapiQuality(params.quality as any)
     if (params.style) setNewapiStyle(params.style as any)
+    if (params.background) setNewapiBackground(params.background as NewApiBackground)
+    if (params.moderation) setNewapiModeration(params.moderation as NewApiModeration)
     if (params.thinkingLevel) setGeminiThinkingLevel(params.thinkingLevel)
     if (params.mediaResolution) setGeminiMediaResolution(params.mediaResolution)
     if (params.aspectRatio) setGeminiAspectRatio(params.aspectRatio as any)
@@ -1383,6 +1413,26 @@ export function GenerationForm({
       return
     }
 
+    if (provider.id === "newapi" && isImg2ImgMode && isNewApiOpenAICompatModel(selectedNewapiModel)) {
+      if (!supportsNewApiEdits(selectedNewapiModel)) {
+        toast({
+          title: "当前模型不支持图片编辑",
+          description: "NewAPI 的 DALL·E 3 兼容模式只支持文生图。图生图请改用 GPT Image 1 或 DALL·E 2。",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (images.length > 1) {
+        toast({
+          title: "当前模型只支持单图编辑",
+          description: "NewAPI 的 OpenAI 兼容编辑接口当前按单张原图处理，请只保留 1 张图片。",
+          variant: "destructive",
+        })
+        return
+      }
+    }
+
     if (isImg2ImgMode && !hasImages && !hasOpenAIResponsesContinuation) {
       toast({
         title: "请先上传图片",
@@ -1466,16 +1516,18 @@ export function GenerationForm({
         syncMode: provider.id === "fal" && !selectedFalCapability.supportsSyncMode ? undefined : syncMode,
         quality: provider.id === "newapi" ? safeNewapiQuality : undefined,
         style: provider.id === "newapi" ? newapiStyle : undefined,
+        background: provider.id === "newapi" && supportsNewApiBackground(selectedNewapiModel) ? newapiBackground : undefined,
+        moderation: provider.id === "newapi" && supportsNewApiModeration(selectedNewapiModel) ? newapiModeration : undefined,
         thinkingLevel: (
-          (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+          (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
           (provider.id === "gemini" && selectedGeminiModel.includes("pro"))
         ) ? geminiThinkingLevel : undefined,
         mediaResolution: (
-          (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+          (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
           provider.id === "gemini"
         ) ? geminiMediaResolution : undefined,
         aspectRatio: (
-          (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+          (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
           provider.id === "gemini"
         ) ? geminiAspectRatio : undefined,
         falNanoBananaAspectRatio: isNanoBananaProSelected ? falNanoBananaAspectRatio : undefined,
@@ -1503,19 +1555,21 @@ export function GenerationForm({
       modelId,
       quality: provider.id === "newapi" ? safeNewapiQuality : undefined,
       style: provider.id === "newapi" ? newapiStyle : undefined,
+      background: provider.id === "newapi" && supportsNewApiBackground(selectedNewapiModel) ? newapiBackground : undefined,
+      moderation: provider.id === "newapi" && supportsNewApiModeration(selectedNewapiModel) ? newapiModeration : undefined,
       openaiApiKey,
       ...(provider.id === "openai" ? openAIParamsForHistory : {}),
       // Gemini 参数（NewAPI 的 Gemini 模型或 Gemini 供应商）
       thinkingLevel: (
-        (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+        (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
         (provider.id === "gemini" && selectedGeminiModel.includes("pro"))
       ) ? geminiThinkingLevel : undefined,
       mediaResolution: (
-        (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+        (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
         provider.id === "gemini"
       ) ? geminiMediaResolution : undefined,
       aspectRatio: (
-        (provider.id === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini")) ||
+        (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
         provider.id === "gemini"
       ) ? geminiAspectRatio : undefined,
       // FAL nano-banana-pro 专用参数
@@ -2315,7 +2369,7 @@ export function GenerationForm({
                 </div>
               ) : null}
 
-              {safeSelectedProvider === "newapi" && selectedNewapiModel.toLowerCase().startsWith("gemini") && (
+              {safeSelectedProvider === "newapi" && isNewApiGeminiModel(selectedNewapiModel) && (
                 <div className="sm:col-span-2 grid gap-4 grid-cols-1 md:grid-cols-3 w-full">
                   <div className="space-y-2">
                     <Label htmlFor="gemini-thinking" className="text-sm font-medium text-foreground">
@@ -2582,8 +2636,8 @@ export function GenerationForm({
                     </SelectContent>
                   </Select>
                 </div>
-                
-                {selectedNewapiModel === "dall-e-3" ? (
+
+                {supportsNewApiStyle(selectedNewapiModel) ? (
                   <div className="space-y-2">
                     <Label htmlFor="newapi-style" className="text-sm font-medium text-foreground">
                       图片风格
@@ -2603,6 +2657,53 @@ export function GenerationForm({
                     <p className="text-xs text-muted-foreground">
                       鲜艳适合创意设计，自然适合写实场景
                     </p>
+                  </div>
+                ) : null}
+
+                {supportsNewApiBackground(selectedNewapiModel) ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="newapi-background" className="text-sm font-medium text-foreground">
+                      背景
+                    </Label>
+                    <Select value={newapiBackground} onValueChange={(v) => setNewapiBackground(v as NewApiBackground)}>
+                      <SelectTrigger id="newapi-background">
+                        <SelectValue placeholder="选择背景" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">自动</SelectItem>
+                        <SelectItem value="opaque">不透明</SelectItem>
+                        <SelectItem value="transparent">透明</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      GPT Image 1 兼容模式支持透明背景输出。
+                    </p>
+                  </div>
+                ) : null}
+
+                {supportsNewApiModeration(selectedNewapiModel) ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="newapi-moderation" className="text-sm font-medium text-foreground">
+                      审核强度
+                    </Label>
+                    <Select value={newapiModeration} onValueChange={(v) => setNewapiModeration(v as NewApiModeration)}>
+                      <SelectTrigger id="newapi-moderation">
+                        <SelectValue placeholder="选择审核强度" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">自动</SelectItem>
+                        <SelectItem value="low">低</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      按 NewAPI 最新 OpenAI 兼容参数传递 moderation。
+                    </p>
+                  </div>
+                ) : null}
+
+                {mode === "img2img" && isNewApiOpenAICompatModel(selectedNewapiModel) ? (
+                  <div className="sm:col-span-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
+                    OpenAI 兼容编辑模式建议使用单张方形 PNG 原图；DALL·E 3 不支持编辑。
                   </div>
                 ) : null}
               </div>
@@ -2727,11 +2828,11 @@ export function GenerationForm({
                   value={safeNumImages}
                   onChange={(e) => setNumImages(Number(e.target.value))}
                   min={1}
-                  max={safeSelectedProvider === "newapi" && selectedNewapiModel === "dall-e-3" ? 1 : 4}
-                  disabled={safeSelectedProvider === "newapi" && selectedNewapiModel === "dall-e-3"}
+                  max={safeSelectedProvider === "newapi" && isNewApiOpenAICompatModel(selectedNewapiModel) ? getNewApiSafeNumImages(selectedNewapiModel, 4) : 4}
+                  disabled={safeSelectedProvider === "newapi" && isNewApiOpenAICompatModel(selectedNewapiModel) && getNewApiSafeNumImages(selectedNewapiModel, 4) === 1}
                 />
-                {safeSelectedProvider === "newapi" && selectedNewapiModel === "dall-e-3" && (
-                  <p className="text-xs text-amber-600">DALL·E 3 仅支持单张图片生成</p>
+                {safeSelectedProvider === "newapi" && isNewApiOpenAICompatModel(selectedNewapiModel) && getNewApiSafeNumImages(selectedNewapiModel, 4) === 1 && (
+                  <p className="text-xs text-amber-600">{selectedNewapiModel} 仅支持单张图片生成</p>
                 )}
               </div>
 

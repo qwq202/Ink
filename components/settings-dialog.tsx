@@ -579,6 +579,9 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                     value={newapiConfig.endpoint}
                     onChange={(e) => setNewapiConfig({ ...newapiConfig, endpoint: e.target.value })}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    填基础地址即可，应用会自动拼接 OpenAI 兼容的图片生成与编辑路径。
+                  </p>
                 </div>
 
               </div>
