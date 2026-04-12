@@ -139,18 +139,11 @@ export async function deleteFromHistory(id: string): Promise<void> {
 
 export async function clearHistory(): Promise<void> {
   const db = await openDB()
-  const transaction = db.transaction([STORE_NAME, SOURCE_IMAGE_STORE_NAME], "readwrite")
+  const transaction = db.transaction([STORE_NAME], "readwrite")
   const store = transaction.objectStore(STORE_NAME)
-  const sourceImageStore = transaction.objectStore(SOURCE_IMAGE_STORE_NAME)
 
   await new Promise<void>((resolve, reject) => {
     const request = store.clear()
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
-  })
-
-  await new Promise<void>((resolve, reject) => {
-    const request = sourceImageStore.clear()
     request.onsuccess = () => resolve()
     request.onerror = () => reject(request.error)
   })

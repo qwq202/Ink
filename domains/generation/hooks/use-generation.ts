@@ -22,6 +22,7 @@ export function useGeneration() {
   const [history, setHistory] = useState<GenerationResult[]>([])
   const historyLoadSeqRef = useRef(0)
   const historyVersionRef = useRef(0)
+  const refreshRetryScheduledRef = useRef(false)
   const { toast } = useToast()
   const { addTask, cancelTask, getTask, tasks, pending, running } = useTaskQueue(2)
 
@@ -38,7 +39,16 @@ export function useGeneration() {
     const versionAtStart = historyVersionRef.current
     const loaded = await loadHistory()
     if (loadSeq !== historyLoadSeqRef.current) return
-    if (versionAtStart !== historyVersionRef.current) return
+    if (versionAtStart !== historyVersionRef.current) {
+      if (!refreshRetryScheduledRef.current) {
+        refreshRetryScheduledRef.current = true
+        queueMicrotask(() => {
+          refreshRetryScheduledRef.current = false
+          void refreshHistory()
+        })
+      }
+      return
+    }
     setHistory(loaded)
   }, [])
 
