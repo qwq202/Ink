@@ -31,11 +31,18 @@ function resolveServerFalAuth(authorization: string | null): string | undefined 
   return undefined
 }
 
+function normalizeHeaderValue(value: string | string[] | null | undefined): string | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null
+  }
+  return value ?? null
+}
+
 const proxyRoute = createRouteHandler({
   allowedEndpoints: ["**"],
   allowUnauthorizedRequests: false,
-  isAuthenticated: async (behavior) => Boolean(resolveServerFalAuth(behavior.getHeader("authorization"))),
-  resolveFalAuth: async (behavior) => resolveServerFalAuth(behavior.getHeader("authorization")),
+  isAuthenticated: async (behavior) => Boolean(resolveServerFalAuth(normalizeHeaderValue(behavior.getHeader("authorization")))),
+  resolveFalAuth: async (behavior) => resolveServerFalAuth(normalizeHeaderValue(behavior.getHeader("authorization"))),
 })
 
 function ensureAbsoluteFalUrl(endpoint: string): string {

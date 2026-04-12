@@ -321,6 +321,10 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
     const newapiModel = normalizeNewApiModel(params.modelId)
     const responseFormat = newapiModel === "gpt-image-1" || isNewApiGeminiModel(newapiModel) ? "b64_json" : "url"
     const useServerProxy = (provider.requestOrigin ?? "server") === "server"
+    const providerEndpoint = provider.endpoint?.trim()
+    if (!providerEndpoint) {
+      throw new Error("NewAPI endpoint 未配置")
+    }
     const maxAttempts = 3
     const retryDelay = (attempt: number) =>
       new Promise((resolve) => setTimeout(resolve, 600 * attempt))
@@ -371,7 +375,7 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
 
       const performRequest = () => {
         if (useServerProxy) {
-          formData.set("endpoint", provider.endpoint)
+          formData.set("endpoint", providerEndpoint)
           formData.set("apiKey", provider.apiKey)
           formData.set("mode", "edit")
 
@@ -381,7 +385,7 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
           })
         }
 
-        let baseUrl = provider.endpoint.trim().replace(/\/+$/, "")
+        let baseUrl = providerEndpoint.replace(/\/+$/, "")
         if (baseUrl.includes("/v1/images")) {
           const match = baseUrl.match(/^(https?:\/\/[^/]+)/)
           baseUrl = match ? match[1] : baseUrl
@@ -487,7 +491,7 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
     const performGeneration = () => {
       if (useServerProxy) {
         const formData = new FormData()
-        formData.append("endpoint", provider.endpoint)
+        formData.append("endpoint", providerEndpoint)
         formData.append("apiKey", provider.apiKey)
         formData.append("mode", "generation")
         formData.append("model", newapiModel)
@@ -529,7 +533,7 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
         })
       }
 
-      let baseUrl = provider.endpoint.trim().replace(/\/+$/, "")
+      let baseUrl = providerEndpoint.replace(/\/+$/, "")
       if (baseUrl.includes("/v1/images")) {
         const match = baseUrl.match(/^(https?:\/\/[^/]+)/)
         baseUrl = match ? match[1] : baseUrl
@@ -642,6 +646,10 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
   async function callOpenRouterAPI(): Promise<string[]> {
     const openrouterModel = params.modelId || "google/gemini-2.5-flash-image"
     const useServerProxy = (provider.requestOrigin ?? "server") === "server"
+    const providerEndpoint = provider.endpoint?.trim()
+    if (!providerEndpoint) {
+      throw new Error("OpenRouter endpoint 未配置")
+    }
 
     await logDebug({
       message: "OpenRouter image generation dispatch",
@@ -693,7 +701,7 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
     const performGeneration = () => {
       if (useServerProxy) {
         const formData = new FormData()
-        formData.append("endpoint", provider.endpoint)
+        formData.append("endpoint", providerEndpoint)
         formData.append("apiKey", provider.apiKey)
         formData.append("model", openrouterModel)
         formData.append("prompt", params.prompt)
@@ -711,7 +719,7 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
         })
       }
 
-      return fetch(`${provider.endpoint}/chat/completions`, {
+      return fetch(`${providerEndpoint}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

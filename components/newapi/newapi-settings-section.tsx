@@ -13,12 +13,13 @@ import { type NewApiModel } from "@/hooks/use-newapi-models"
 import type { RefObject } from "react"
 
 interface NewAPISettingsSectionProps {
+  mode: "img2img" | "txt2img"
   selectedNewapiModel: string
   newapiModels: NewApiModel[]
   hasNewapiModels: boolean
   isLoadingNewApiModels: boolean
   newapiSearch: string
-  newapiListRef: RefObject<HTMLDivElement>
+  newapiListRef: RefObject<HTMLDivElement | null>
   newapiModelButtonLabel: string
   isNewapiModelPopoverOpen: boolean
   onNewapiModelPopoverOpenChange: (next: boolean) => void
@@ -47,6 +48,7 @@ interface NewAPISettingsSectionProps {
 const GEMINI_ASPECT_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"] as const
 
 export function NewAPISettingsSection({
+  mode: _mode,
   selectedNewapiModel,
   newapiModels,
   hasNewapiModels,

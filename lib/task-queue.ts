@@ -110,8 +110,9 @@ export class TaskQueue {
         task.status = "completed"
         task.progress = 100
       } catch (error) {
-        if (task.status === "cancelled") {
-          // Task was cancelled, don't change status
+        if (task.abortController?.signal.aborted) {
+          task.status = "cancelled"
+          task.error = error instanceof Error ? error.message : "Task cancelled"
         } else {
           task.status = "failed"
           task.error = error instanceof Error ? error.message : "Unknown error"

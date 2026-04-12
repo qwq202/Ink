@@ -138,9 +138,9 @@ export function buildOpenAIHistoryParams({
     return {
       openaiApiMode: "responses",
       openaiPreviousResponseId: openAIResponsesPreviousResponseId,
-      openaiResponsesMode,
-      openaiResponsesMaxOutputTokens,
-      openaiResponsesTemperature,
+      openaiResponsesMode: openAIResponsesMode,
+      openaiResponsesMaxOutputTokens: openAIResponsesMaxOutputTokens,
+      openaiResponsesTemperature: openAIResponsesTemperature,
     }
   }
 

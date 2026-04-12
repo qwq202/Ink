@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { TaskQueue, type Task, type TaskOptions } from "@/lib/task-queue"
 
 export function useTaskQueue(maxConcurrent = 2) {
-  const queueRef = useRef<TaskQueue>()
+  const queueRef = useRef<TaskQueue | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [pending, setPending] = useState(0)
   const [running, setRunning] = useState(0)
