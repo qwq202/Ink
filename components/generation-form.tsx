@@ -42,35 +42,21 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { OpenAISettingsSection } from "@/components/openai/openai-settings-section"
+import {
+  buildOpenAIHistoryMetadata,
+  buildOpenAIHistoryParams,
+  getOpenAIImageSizeOptions,
+  getOpenAIModelOptions,
+  getOpenAIResponsesModes,
+  getOpenAINumImages,
+  OPENAI_ENDPOINT_PROFILE_KEY,
+  OPENAI_IMAGE_ENDPOINT_DEFAULT,
+  OPENAI_RESPONSES_ENDPOINT_DEFAULT,
+  type OpenAIModelMode,
+  type OpenAIResponsesMode,
+} from "@/lib/openai-form-utils"
 import type { OpenAIApiMode, GenerationOperationType, OpenAIResponseChainMetadata } from "@/hooks/use-generation-history"
-
-type OpenAIModelMode = "image" | "responses"
-type OpenAIResponsesMode = "text" | "image"
-
-const OPENAI_IMAGE_ENDPOINT_DEFAULT = "https://api.openai.com/v1/images/generations"
-const OPENAI_RESPONSES_ENDPOINT_DEFAULT = "https://api.openai.com/v1/responses"
-const OPENAI_ENDPOINT_PROFILE_KEY = "ai-image-openai-endpoint-profile"
-const OPENAI_MODELS = {
-  image: [
-    { value: "gpt-image-1.5", label: "GPT Image 1.5" },
-    { value: "gpt-image-1", label: "GPT Image 1" },
-    { value: "gpt-image-1-mini", label: "GPT Image 1 Mini" },
-    { value: "dall-e-3", label: "DALL·E 3" },
-    { value: "dall-e-2", label: "DALL·E 2" },
-  ],
-  responses: [
-    { value: "gpt-4.1", label: "GPT-4.1（可做图像与文本）" },
-    { value: "gpt-4.1-mini", label: "GPT-4.1-mini" },
-    { value: "gpt-4o", label: "GPT-4o" },
-    { value: "gpt-4o-mini", label: "GPT-4o-mini" },
-    { value: "gpt-image-1", label: "GPT Image 1（兼容模式）" },
-  ],
-}
-
-const OPENAI_RESPONSES_MODES: Array<{ value: OpenAIResponsesMode; label: string }> = [
-  { value: "image", label: "图片导向（输出图像）" },
-  { value: "text", label: "文本导向（先理解再生成）" },
-]
 
 function normalizeEndpointValue(value: string, fallback: string) {
   const trimmed = value.trim()
@@ -199,7 +185,8 @@ export function GenerationForm({
   const [historyToDelete, setHistoryToDelete] = useState<string | null>(null)
   const [showClearHistoryConfirm, setShowClearHistoryConfirm] = useState(false)
   const [openAIEndpointProfile, setOpenAIEndpointProfile] = useState(loadOpenAIEndpointProfile())
-  const openAIModelOptions = openAIMode === "responses" ? OPENAI_MODELS.responses : OPENAI_MODELS.image
+  const openAIModelOptions = getOpenAIModelOptions(openAIMode)
+  const openAIResponsesModeOptions = getOpenAIResponsesModes()
 
 
 
@@ -636,52 +623,44 @@ export function GenerationForm({
     ? "加载模型列表..." 
     : (selectedOpenRouterModel || (hasOpenRouterModels ? "选择 OpenRouter 模型" : "google/gemini-2.5-flash-image"))
 
-  const openAIParamsForHistory =
-    openAIMode === "responses"
-      ? ({
-          openaiApiMode: "responses",
-          openaiPreviousResponseId: openAIResponsesPreviousResponseId,
-          openaiResponsesMode,
-          openaiResponsesMaxOutputTokens,
-          openaiResponsesTemperature,
-        } satisfies Partial<GenerationParams>)
-      : ({
-          openaiApiMode: "image",
-          openaiImageQuality: openAIImageQuality,
-          openaiImageStyle: openAIImageStyle,
-        } satisfies Partial<GenerationParams>)
+  const openAIParamsForHistory = useMemo(
+    () =>
+      buildOpenAIHistoryParams({
+        openAIMode,
+        openAIImageQuality,
+        openAIImageStyle,
+        openAIResponsesMode,
+        openAIResponsesMaxOutputTokens,
+        openAIResponsesTemperature,
+        openAIResponsesPreviousResponseId,
+      }),
+    [
+      openAIMode,
+      openAIImageQuality,
+      openAIImageStyle,
+      openAIResponsesMode,
+      openAIResponsesMaxOutputTokens,
+      openAIResponsesPreviousResponseId,
+      openAIResponsesTemperature,
+    ],
+  )
 
-  const buildOpenAIHistoryMetadata = useCallback(
-    (providerOperationType: GenerationOperationType): OpenAIResponseChainMetadata | undefined => {
-      const endpoint = openAIEndpointByMode(openAIMode)
-
-      const metadata: OpenAIResponseChainMetadata = {
-        endpoint,
-        modelId: openAIModel,
-        openaiMode: currentOpenAIMetadataMode,
+  const buildOpenAIHistoryMetadataByMode = useCallback(
+    (providerOperationType: GenerationOperationType): OpenAIResponseChainMetadata => {
+      return buildOpenAIHistoryMetadata({
+        openAIEndpointByMode,
+        openAIMode,
+        openAIModel,
+        openAIImageQuality,
+        openAIImageStyle,
+        openAIResponsesMode,
+        openAIResponsesPreviousResponseId,
+        openAIResponsesTemperature,
+        openAIResponsesMaxOutputTokens,
         operationType: providerOperationType,
-        extras: {
-          openaiMode: currentOpenAIMetadataMode,
-        },
-      }
-
-      if (openAIMode === "responses") {
-        metadata.requestId = openAIResponsesPreviousResponseId
-        metadata.temperature = openAIResponsesTemperature
-        metadata.maxOutputTokens = openAIResponsesMaxOutputTokens
-        metadata.extras = { ...metadata.extras, responsesMode: openAIResponsesMode }
-      } else {
-        metadata.extras = {
-          ...metadata.extras,
-          imageQuality: openAIImageQuality,
-          imageStyle: openAIImageStyle,
-        }
-      }
-
-      return metadata
+      })
     },
     [
-      currentOpenAIMetadataMode,
       openAIEndpointByMode,
       openAIMode,
       openAIImageQuality,
@@ -696,7 +675,7 @@ export function GenerationForm({
 
   useEffect(() => {
     if (safeSelectedProvider !== "openai") return
-    const currentModeModels = openAIMode === "responses" ? OPENAI_MODELS.responses : OPENAI_MODELS.image
+    const currentModeModels = getOpenAIModelOptions(openAIMode)
     if (currentModeModels.some((model) => model.value === openAIModel)) return
     setOpenAIModel(currentModeModels[0]?.value || "gpt-image-1")
   }, [safeSelectedProvider, openAIMode, openAIModel])
@@ -768,44 +747,12 @@ export function GenerationForm({
 
   const imageSizeOptions = useMemo(() => {
     if (safeSelectedProvider === "openai") {
-      const imageMode = openAIMode === "responses" ? "responses" : "image"
-      if (imageMode === "image") {
-        if (openAIModel === "dall-e-2") {
-          const options = [
-            { value: "256x256", label: "小图 · 256 x 256" },
-            { value: "512x512", label: "中图 · 512 x 512" },
-            { value: "1024x1024", label: "大图 · 1024 x 1024" },
-            { value: "custom", label: "自定义尺寸" },
-          ]
-          if (customAppliedValue && !options.some((o) => o.value === customAppliedValue)) {
-            options.splice(options.length - 1, 0, { value: customAppliedValue, label: `自定义 · ${customAppliedValue.replace("x", " x ")}` })
-          }
-          return mode === "img2img"
-            ? [{ value: "auto", label: "与原图相同（推荐）" }, ...options]
-            : options
-        }
-
-        if (openAIModel === "dall-e-3") {
-          return [
-            { value: "1024x1024", label: "方形 · 1024 x 1024" },
-            { value: "1792x1024", label: "横向 · 1792 x 1024" },
-            { value: "1024x1792", label: "纵向 · 1024 x 1792" },
-          ]
-        }
-      }
-
-      const options = [
-        { value: "1024x1024", label: "方形 · 1024 x 1024" },
-        { value: "1536x1024", label: "横向 · 1536 x 1024" },
-        { value: "1024x1536", label: "纵向 · 1024 x 1536" },
-        { value: "custom", label: "自定义尺寸" },
-      ]
-      if (customAppliedValue && !options.some((o) => o.value === customAppliedValue)) {
-        options.splice(options.length - 1, 0, { value: customAppliedValue, label: `自定义 · ${customAppliedValue.replace("x", " x ")}` })
-      }
-      return mode === "img2img"
-        ? [{ value: "auto", label: "与原图相同（推荐）" }, ...options]
-        : options
+      return getOpenAIImageSizeOptions({
+        openAIMode,
+        openAIModel,
+        generationMode: mode,
+        customAppliedValue,
+      })
     }
 
     // NewAPI size options based on model
@@ -943,10 +890,11 @@ export function GenerationForm({
   
   const safeNumImages = useMemo(() => {
     if (safeSelectedProvider === "openai") {
-      if (openAIMode === "responses" || openAIModel === "dall-e-3") {
-        return 1
-      }
-      return numImages
+      return getOpenAINumImages({
+        openAIMode,
+        openAIModel,
+        numImages,
+      })
     }
     if (safeSelectedProvider === "newapi" && selectedNewapiModel === "dall-e-3") {
       return Math.min(numImages, 1)
@@ -1227,7 +1175,7 @@ export function GenerationForm({
       },
       openaiMode: provider.id === "openai" ? currentOpenAIMetadataMode : undefined,
       operationType: provider.id === "openai" ? operationType : undefined,
-      responseChainMetadata: provider.id === "openai" ? buildOpenAIHistoryMetadata(operationType) : undefined,
+      responseChainMetadata: provider.id === "openai" ? buildOpenAIHistoryMetadataByMode(operationType) : undefined,
     })
     
     toast({
@@ -1243,7 +1191,7 @@ export function GenerationForm({
     selectedNewapiModel,
     selectedOpenRouterModel,
     selectedGeminiModel,
-    buildOpenAIHistoryMetadata,
+    buildOpenAIHistoryMetadataByMode,
     currentOpenAIMetadataMode,
     operationType,
     openAIParamsForHistory,
@@ -1541,7 +1489,7 @@ export function GenerationForm({
       },
       openaiMode: provider.id === "openai" ? currentOpenAIMetadataMode : undefined,
       operationType: provider.id === "openai" ? operationType : undefined,
-      responseChainMetadata: provider.id === "openai" ? buildOpenAIHistoryMetadata(operationType) : undefined,
+      responseChainMetadata: provider.id === "openai" ? buildOpenAIHistoryMetadataByMode(operationType) : undefined,
     })
 
     await onGenerate(provider, {
@@ -2062,46 +2010,26 @@ export function GenerationForm({
               ) : null}
 
               {safeSelectedProvider === "openai" ? (
-                <div className="space-y-2">
-                  <Label htmlFor="openai-mode" className="text-sm font-medium text-foreground">
-                    OpenAI 交互模式
-                  </Label>
-                  <Select
-                    value={openAIMode}
-                    onValueChange={(v) => setOpenAIMode(v as OpenAIModelMode)}
-                  >
-                    <SelectTrigger id="openai-mode" className="h-10">
-                      <SelectValue placeholder="选择 OpenAI 模式" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="image">Image API（图像生成 / 编辑）</SelectItem>
-                      <SelectItem value="responses">Responses API（多模态工作流）</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
-
-              {safeSelectedProvider === "openai" ? (
-                <div className="space-y-2">
-                  <Label htmlFor="openai-model" className="text-sm font-medium text-foreground">
-                    OpenAI 模型
-                  </Label>
-                  <Select
-                    value={openAIModel}
-                    onValueChange={setOpenAIModel}
-                  >
-                    <SelectTrigger id="openai-model" className="h-10">
-                      <SelectValue placeholder="选择模型" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {openAIModelOptions.map((model) => (
-                        <SelectItem key={model.value} value={model.value}>
-                          {model.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <OpenAISettingsSection
+                  openAIMode={openAIMode}
+                  openAIModel={openAIModel}
+                  openAIImageQuality={openAIImageQuality}
+                  openAIImageStyle={openAIImageStyle}
+                  openAIResponsesMode={openAIResponsesMode}
+                  openAIResponsesMaxOutputTokens={openAIResponsesMaxOutputTokens}
+                  openAIResponsesTemperature={openAIResponsesTemperature}
+                  openAIResponsesPreviousResponseId={openAIResponsesPreviousResponseId}
+                  openAIModelOptions={openAIModelOptions}
+                  openAIResponsesModeOptions={openAIResponsesModeOptions}
+                  onOpenAIModeChange={setOpenAIMode}
+                  onOpenAIModelChange={setOpenAIModel}
+                  onOpenAIImageQualityChange={setOpenAIImageQuality}
+                  onOpenAIImageStyleChange={setOpenAIImageStyle}
+                  onOpenAIResponsesModeChange={setOpenAIResponsesMode}
+                  onOpenAIResponsesMaxOutputTokensChange={setOpenAIResponsesMaxOutputTokens}
+                  onOpenAIResponsesTemperatureChange={setOpenAIResponsesTemperature}
+                  onOpenAIResponsesPreviousResponseIdChange={setOpenAIResponsesPreviousResponseId}
+                />
               ) : null}
 
               {isNanoBananaProSelected && (
@@ -2620,129 +2548,6 @@ export function GenerationForm({
                 </div>
               )}
 
-              {safeSelectedProvider === "openai" ? (
-                <div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
-                  {openAIMode === "image" ? (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="openai-image-quality" className="text-sm font-medium text-foreground">
-                          图像质量
-                        </Label>
-                        <Select
-                          value={openAIImageQuality}
-                          onValueChange={(v) => setOpenAIImageQuality(v as "standard" | "hd")}
-                        >
-                          <SelectTrigger id="openai-image-quality">
-                            <SelectValue placeholder="选择质量" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="standard">标准</SelectItem>
-                            <SelectItem value="hd">高清</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                          OpenAI Image API 的标准质量与高清参数
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="openai-image-style" className="text-sm font-medium text-foreground">
-                          图像风格
-                        </Label>
-                        <Select
-                          value={openAIImageStyle}
-                          onValueChange={(v) => setOpenAIImageStyle(v as "vivid" | "natural")}
-                          disabled={openAIModel !== "dall-e-3"}
-                        >
-                          <SelectTrigger id="openai-image-style">
-                            <SelectValue placeholder="选择风格" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="vivid">鲜艳</SelectItem>
-                            <SelectItem value="natural">自然</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                          DALL·E 3 生效；其他模型将自动忽略
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="openai-response-mode" className="text-sm font-medium text-foreground">
-                          Responses 输出模式
-                        </Label>
-                        <Select
-                          value={openAIResponsesMode}
-                          onValueChange={(v) => setOpenAIResponsesMode(v as OpenAIResponsesMode)}
-                        >
-                          <SelectTrigger id="openai-response-mode">
-                            <SelectValue placeholder="选择输出模式" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {OPENAI_RESPONSES_MODES.map((item) => (
-                              <SelectItem key={item.value} value={item.value}>
-                                {item.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="openai-max-output-tokens" className="text-sm font-medium text-foreground">
-                          最大输出 token
-                        </Label>
-                        <Input
-                          id="openai-max-output-tokens"
-                          type="number"
-                          min={1}
-                          max={4000}
-                          value={openAIResponsesMaxOutputTokens}
-                          onChange={(e) => {
-                            const next = Number(e.target.value)
-                            if (Number.isNaN(next)) return
-                            setOpenAIResponsesMaxOutputTokens(next)
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="openai-temperature" className="text-sm font-medium text-foreground">
-                          温度
-                        </Label>
-                        <Input
-                          id="openai-temperature"
-                          type="number"
-                          min={0}
-                          max={2}
-                          step={0.1}
-                          value={openAIResponsesTemperature}
-                          onChange={(e) => {
-                            const next = Number(e.target.value)
-                            if (Number.isNaN(next)) return
-                            setOpenAIResponsesTemperature(next)
-                          }}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          建议 0 ~ 2。数值越高，随机性越强。
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="openai-prev-response-id" className="text-sm font-medium text-foreground">
-                          Previous Response ID
-                        </Label>
-                        <Input
-                          id="openai-prev-response-id"
-                          type="text"
-                          value={openAIResponsesPreviousResponseId || ""}
-                          onChange={(e) => setOpenAIResponsesPreviousResponseId(e.target.value || undefined)}
-                          placeholder="可选，用于继续会话"
-                        />
-                        <p className="text-xs text-muted-foreground">留空将重新发起一次会话。</p>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ) : null}
             </div>
             
             {safeSelectedProvider === "newapi" ? (
