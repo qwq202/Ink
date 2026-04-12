@@ -18,6 +18,7 @@ import {
   OPENAI_RESPONSES_ENDPOINT_DEFAULT,
   saveOpenAIEndpointProfile,
 } from "@/domains/settings/lib/openai-endpoint-profile"
+import { ProviderIcon } from "@/domains/settings/components/provider-icon"
 import { cn } from "@/lib/utils"
 
 interface SettingsDialogProps {
@@ -352,7 +353,15 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
                   onTabChange?.(p.id)
                 }}
               >
-                <span className="flex-1 font-medium">{p.label}</span>
+                <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                  <ProviderIcon
+                    providerId={p.id}
+                    className={cn(
+                      activeProvider === p.id ? "text-accent-foreground" : "text-muted-foreground/90"
+                    )}
+                  />
+                  <span className="truncate font-medium">{p.label}</span>
+                </div>
                 <Switch
                   checked={enabledByProvider[p.id]}
                   onCheckedChange={(checked) => {
