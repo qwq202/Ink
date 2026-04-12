@@ -1,11 +1,11 @@
 # AI 图片工具
 
-一个基于 Next.js 15 和 React 19 构建的多供应商 AI 图片生成与编辑界面。项目内置 FAL、OpenAI Images 以及可自定义的 NewAPI 渠道，提供批量上传、参数化生成、结果预览、历史存档等端到端功能，适合快速搭建内部图片生产或创意工具。
+一个基于 Next.js 15 和 React 19 构建的多供应商 AI 图片生成与编辑界面。项目当前内置 FAL、OpenAI、NewAPI、OpenRouter 与 Gemini 5 个渠道，提供批量上传、参数化生成、结果预览、历史存档等端到端能力，适合快速搭建内部图片生产或创意工具。
 
 ## 功能特性
-- 多供应商支持：在同一界面切换 FAL、OpenAI 与自建 NewAPI 服务，灵活配置鉴权信息。
+- 多供应商支持：在同一界面切换 FAL、OpenAI、NewAPI、OpenRouter 与 Gemini，灵活配置鉴权信息。
 - 双模式工作流：支持文本生图（txt2img）与图片驱动的编辑/增强（img2img），按需切换。
-- 完整的生成参数：自定义提示词、尺寸、数量、随机种子、安全校验、同步策略，以及 FAL 模型列表实时拉取。
+- 完整的生成参数：自定义提示词、尺寸、数量、随机种子、安全校验、同步策略，以及 FAL / OpenRouter / NewAPI 模型选择与能力适配。
 - 便捷的图片上传体验：拖拽或点击上传，自动校验格式与大小，客户端压缩到最大边 2048 像素，最多保留 4 张图片。
 - 结果与历史管理：最新结果即时预览、放大、下载，IndexedDB 自动保存最近 20 条历史记录，可清空或单独删除。
 - 队列与进度反馈：内置任务队列限制并发生成次数，实时展示运行与排队状态。
@@ -53,18 +53,32 @@ pnpm start
 - `调用方式`：前端统一通过 `@fal-ai/client` 和 `/api/fal/proxy` 服务端代理访问 FAL。
 - `启用`：开启后即加入可选供应商列表。
 
-### OpenAI Images
+### OpenAI
 - `API Key`：OpenAI 账号的 API 密钥。
-- `API 端点`：默认 `https://api.openai.com/v1/images/generations`，如需兼容代理可进行替换。
+- `API 模式`：支持 `Images API` 与 `Responses API` 两种模式，可按代理兼容性切换。
+- `API 端点`：默认支持 `https://api.openai.com/v1/images/generations` 与 `https://api.openai.com/v1/responses`，如需兼容代理可进行替换。
+- `能力`：支持文生图；在 Images API 下支持图片编辑，在 Responses API 下支持基于 `image_generation` 工具生成图片。
 - `启用`：勾选后可在生成表单中选择 OpenAI。
 
 ### NewAPI
 - `API Key` 或 `用户 Token`：根据服务端要求填写，表单会同时支持 `Authorization` 与 `New-Api-User` 头。
 - `API 端点`：填写 NewAPI 服务的基础地址，例如 `https://your-newapi-host`；应用会自动拼接 `/v1/images/generations` 与 `/v1/images/edits`。
-- `User ID`：部分服务需要额外的用户标识。
 - “获取模型列表”按钮会访问 `{baseOrigin}/api/models`，拉取渠道信息并通过通知提示数量。
-- 当前已按 NewAPI 文档适配 OpenAI Images 兼容模型：`gpt-image-1`、`dall-e-3`、`dall-e-2`。
+- 当前已按 NewAPI 文档适配 OpenAI Images 兼容模型：`gpt-image-1`、`dall-e-3`、`dall-e-2`，同时兼容以 `gemini` 开头的图片模型。
 - 其中 `gpt-image-1` 支持 `background` 与 `moderation` 参数；`dall-e-3` 仅支持文生图；OpenAI 兼容编辑模式建议使用单张方形 PNG 原图。
+- 当所选模型为 Gemini 系时，可额外传入 `thinking_level`、`media_resolution` 与 `aspect_ratio`。
+
+### OpenRouter
+- `API Key`：OpenRouter 平台密钥。
+- `API 端点`：默认 `https://openrouter.ai/api/v1`，支持替换为兼容网关。
+- `能力`：当前按图片生成模型工作流调用 `/chat/completions`，默认模型为 `google/gemini-2.5-flash-image`。
+- “获取模型列表”按钮会读取 `/models`，并在生成表单中按模型 ID、名称与提供商信息搜索筛选。
+
+### Gemini
+- `API Key`：Google AI Studio / Gemini API 密钥。
+- `API 端点`：默认 `https://generativelanguage.googleapis.com`，通过服务端代理调用。
+- `内置模型`：当前预置 `gemini-2.5-flash-image` 与 `gemini-3-pro-image-preview`。
+- `能力`：支持图片生成；`gemini-3-pro-image-preview` 额外支持更高分辨率与思考等级参数。
 
 ### 存储与安全
 - 所有供应商配置写入浏览器 localStorage，写入前使用 AES-GCM 加密并缓存密钥。
@@ -85,7 +99,8 @@ pnpm start
 ### 生成参数
 - FAL 文生/图像编辑的 `image_size` 仅支持枚举值或 `{ width, height }` 对象，不再接收任意字符串；推荐的枚举有 `square`、`landscape_4_3`（默认）、`landscape_16_9`、`portrait_4_3`、`portrait_16_9`，图片编辑模式额外提供“与原图相同”选项。如需自定义尺寸，可传入 `{"width": 1280, "height": 720}` 等 JSON 对象，宽高需为正整数。
 - 支持设置输出数量、随机种子、安全校验开关、同步模式。
-- 当供应商为 FAL 时，可从最新模型列表中选择具体模型 ID。
+- 当供应商为 FAL、OpenRouter 或 NewAPI 时，可从可用模型列表中选择具体模型 ID。
+- Gemini 与部分 NewAPI Gemini 模型支持思考等级、分辨率与宽高比等额外参数。
 
 ### 结果与下载
 - 最新任务的图片结果集中展示，可点击放大或一键下载。
@@ -103,6 +118,11 @@ pnpm start
 ## 内置 API
 - `GET /api/fal/models`：代理调用 fal.ai 模型接口，按分类抓取并缓存 1 小时，可使用 `?category=` 和 `?search=` 查询。
 - `GET/POST/PUT /api/fal/proxy`：基于 `@fal-ai/server-proxy` 的官方代理路由，供 FAL SDK 调用。
+- `POST /api/newapi/models`：按填写的端点与密钥代理拉取 NewAPI 模型列表。
+- `POST /api/newapi/generate`：代理 NewAPI 文生图与图像编辑请求。
+- `GET /api/openrouter/models`：代理获取 OpenRouter 模型列表。
+- `POST /api/openrouter/generate`：代理 OpenRouter 图片生成请求。
+- `POST /api/gemini/generate`：代理 Gemini 图片生成请求。
 - `POST /api/log`：接收客户端日志并写入服务器 stdout，便于部署环境调试。
 
 ## 项目结构
@@ -120,6 +140,8 @@ styles/             # 全局样式与 Tailwind 定制
 - **FAL 生成失败或无结果**：检查 FAL API Key、所选 `model_id` 是否有效，以及图片输入是否符合该模型能力要求。
 - **历史记录丢失**：IndexedDB 升级或清理缓存会清空历史，请及时导出需要的图片。
 - **NewAPI 拉取模型失败**：确认端点返回 JSON 且包含 `success` 字段，必要时检查鉴权头是否符合服务端要求。
+- **OpenRouter 无法返回图片**：确认所选模型具备图像输出能力，并检查端点是否兼容 `/chat/completions` 图片返回格式。
+- **Gemini 生成失败**：检查 Gemini API Key、所选模型是否仍可用，以及部署环境是否允许服务端访问 Google Generative Language API。
 
 ## 许可
 仓库未明确声明许可证，若需对外发布或商用，请先与仓库所有者确认。
