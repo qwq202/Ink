@@ -26,12 +26,11 @@ export function normalizeNewApiModel(modelId?: string): string {
   if (lower.includes("gpt-image-1")) return "gpt-image-1"
   if (lower.includes("dall-e-3")) return "dall-e-3"
   if (lower.includes("dall-e-2")) return "dall-e-2"
-  return "gpt-image-1"
+  return lower
 }
 
 export function isNewApiOpenAICompatModel(modelId?: string): modelId is NewApiOpenAICompatModel {
-  const normalized = normalizeNewApiModel(modelId)
-  return OPENAI_COMPAT_MODELS.includes(normalized as NewApiOpenAICompatModel)
+  return OPENAI_COMPAT_MODELS.includes(normalizeNewApiModel(modelId) as NewApiOpenAICompatModel)
 }
 
 export function supportsNewApiStyle(modelId?: string): boolean {

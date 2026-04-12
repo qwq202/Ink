@@ -23,7 +23,7 @@ export function useTaskQueue(maxConcurrent = 2) {
 
     return () => {
       unsubscribe()
-      queueRef.current?.clear()
+      queueRef.current?.clear("Task queue disposed")
     }
   }, [maxConcurrent])
 

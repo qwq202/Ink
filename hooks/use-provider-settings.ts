@@ -4,11 +4,10 @@ import { useState, useEffect, useCallback } from "react"
 import {
   consumeFalLegacyInvalidatedNotice,
   loadProviderSettings,
-  saveProviderSettings,
+  updateProviderConfig,
   type ProviderSettings,
   type ProviderConfig,
 } from "@/lib/providers"
-import { useToast } from "@/hooks/use-toast"
 
 let cachedSettings: ProviderSettings | null = null
 const subscribers = new Set<(settings: ProviderSettings | null) => void>()
@@ -29,7 +28,6 @@ export function useProviderSettings() {
   const [hasFalLegacyConfigInvalidated, setHasFalLegacyConfigInvalidated] = useState(() =>
     consumeFalLegacyInvalidatedNotice(),
   )
-  const { toast } = useToast()
 
   useEffect(() => {
     let isMounted = true
@@ -81,15 +79,10 @@ export function useProviderSettings() {
       }
 
       setSettings(updated)
-      await saveProviderSettings(updated)
+      await updateProviderConfig(providerId, config)
       notifySubscribers(updated)
-
-      toast({
-        title: "保存成功",
-        description: "供应商配置已更新",
-      })
     },
-    [settings, toast],
+    [settings],
   )
 
   const getProvider = useCallback(

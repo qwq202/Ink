@@ -21,13 +21,18 @@ interface ResponsesRequestPayload {
 function buildResponsesPayload(params: GenerationParams): ResponsesRequestPayload {
   const requestModel = params.modelId?.trim() || "gpt-image-1"
   const imageSize = resolveOpenAIImageSize(params.imageSize)
+  const responsesMode = params.openaiResponsesMode === "text" ? "text" : "image"
+  const input =
+    responsesMode === "text"
+      ? `请先理解用户意图并规划最终画面，然后调用 image_generation 工具生成图片。\n\n用户需求：${params.prompt || "继续生成图片"}`
+      : params.prompt || "继续生成图片"
   return {
     model: requestModel,
-    input: params.prompt || "继续生成图片",
+    input,
     tools: [
       {
         type: "image_generation",
-        quality: "medium",
+        quality: responsesMode === "text" ? "high" : "medium",
         size: imageSize,
       },
     ],
@@ -72,6 +77,7 @@ export async function callOpenAIResponsesAPI(provider: ProviderConfig, params: G
       inputLength: payload.input.length,
       toolCount: payload.tools.length,
       hasPreviousResponse: !!payload.previous_response_id,
+      responsesMode: params.openaiResponsesMode || "image",
       imageSize: resolveOpenAIImageSize(params.imageSize),
       numImages: params.numImages,
     },

@@ -1,12 +1,18 @@
 import type { GenerationParams } from "@/lib/api-client"
+import {
+  OPENAI_ENDPOINT_PROFILE_KEY,
+  OPENAI_IMAGE_ENDPOINT_DEFAULT,
+  OPENAI_RESPONSES_ENDPOINT_DEFAULT,
+  type OpenAIModelMode,
+} from "@/lib/openai-endpoint-profile"
 import type {
   GenerationOperationType,
   OpenAIApiMode,
   OpenAIResponseChainMetadata,
 } from "@/hooks/use-generation-history"
 
-export type OpenAIModelMode = "image" | "responses"
 export type OpenAIResponsesMode = "text" | "image"
+export type { OpenAIModelMode }
 
 export interface OpenAIModelOption {
   value: string
@@ -18,9 +24,7 @@ export interface OpenAIImageSizeOption {
   label: string
 }
 
-export const OPENAI_IMAGE_ENDPOINT_DEFAULT = "https://api.openai.com/v1/images/generations"
-export const OPENAI_RESPONSES_ENDPOINT_DEFAULT = "https://api.openai.com/v1/responses"
-export const OPENAI_ENDPOINT_PROFILE_KEY = "ai-image-openai-endpoint-profile"
+export { OPENAI_ENDPOINT_PROFILE_KEY, OPENAI_IMAGE_ENDPOINT_DEFAULT, OPENAI_RESPONSES_ENDPOINT_DEFAULT }
 
 const OPENAI_IMAGE_MODELS: OpenAIModelOption[] = [
   { value: "gpt-image-1.5", label: "GPT Image 1.5" },

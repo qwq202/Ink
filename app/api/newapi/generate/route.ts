@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getNewApiImagesUrl, normalizeNewApiBaseUrl } from "@/lib/newapi-endpoint"
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,15 +24,9 @@ export async function POST(request: NextRequest) {
     formData.delete("mode")
 
     // Determine the actual endpoint
-    let baseUrl = endpoint.trim().replace(/\/+$/, "")
-    if (baseUrl.includes("/v1/images")) {
-      const match = baseUrl.match(/^(https?:\/\/[^/]+)/)
-      baseUrl = match ? match[1] : baseUrl
-    }
+    const baseUrl = normalizeNewApiBaseUrl(endpoint)
 
-    const targetEndpoint = mode === "edit" 
-      ? `${baseUrl}/v1/images/edits`
-      : `${baseUrl}/v1/images/generations`
+    const targetEndpoint = getNewApiImagesUrl(baseUrl, mode === "edit" ? "edit" : "generation")
 
     console.log(`[NewAPI Proxy] Target: ${targetEndpoint}`)
 

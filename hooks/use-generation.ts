@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useMemo } from "react"
+import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { generateImages, type GenerationParams, type GenerationResult } from "@/lib/api-client"
 import type { ProviderConfig } from "@/lib/providers"
 import { loadProviderSettings } from "@/lib/providers"
@@ -20,15 +20,31 @@ import { useTaskQueue } from "@/hooks/use-task-queue"
 export function useGeneration() {
   const [results, setResults] = useState<GenerationResult[]>([])
   const [history, setHistory] = useState<GenerationResult[]>([])
+  const historyLoadSeqRef = useRef(0)
+  const historyVersionRef = useRef(0)
   const { toast } = useToast()
   const { addTask, cancelTask, getTask, tasks, pending, running } = useTaskQueue(2)
 
   // 让生成状态与任务队列保持一致，避免并发任务时状态提前归零
   const isGenerating = useMemo(() => pending > 0 || running > 0, [pending, running])
 
-  useEffect(() => {
-    loadHistory().then(setHistory).catch(console.error)
+  const updateHistoryLocally = useCallback((updater: (prev: GenerationResult[]) => GenerationResult[]) => {
+    historyVersionRef.current += 1
+    setHistory((prev) => updater(prev))
   }, [])
+
+  const refreshHistory = useCallback(async () => {
+    const loadSeq = ++historyLoadSeqRef.current
+    const versionAtStart = historyVersionRef.current
+    const loaded = await loadHistory()
+    if (loadSeq !== historyLoadSeqRef.current) return
+    if (versionAtStart !== historyVersionRef.current) return
+    setHistory(loaded)
+  }, [])
+
+  useEffect(() => {
+    refreshHistory().catch(console.error)
+  }, [refreshHistory])
 
   const generate = useCallback(
     async (provider: ProviderConfig, params: GenerationParams): Promise<GenerationResult> => {
@@ -98,7 +114,7 @@ export function useGeneration() {
 
             // 仅保留最近 20 条结果，避免内存占用过大
             setResults((prev) => [finalResult, ...prev].slice(0, 20))
-            setHistory((prev) => [finalResult, ...prev.slice(0, 19)])
+            updateHistoryLocally((prev) => [finalResult, ...prev.slice(0, 19)])
 
             await saveToHistory(finalResult)
 
@@ -133,7 +149,7 @@ export function useGeneration() {
 
       return result
     },
-    [toast, addTask, getTask],
+    [toast, addTask, getTask, updateHistoryLocally],
   )
 
   const clearResults = useCallback(() => {
@@ -141,23 +157,18 @@ export function useGeneration() {
   }, [])
 
   const clearHistory = useCallback(async () => {
-    setHistory([])
+    updateHistoryLocally(() => [])
     await clearHistoryStore()
-  }, [])
+  }, [updateHistoryLocally])
 
   const deleteHistoryItem = useCallback(async (id: string) => {
-    setHistory((prev) => prev.filter((item) => item.id !== id))
+    updateHistoryLocally((prev) => prev.filter((item) => item.id !== id))
     await deleteFromHistoryStore(id)
-  }, [])
+  }, [updateHistoryLocally])
 
   const cancelGeneration = useCallback((taskId: string) => {
     return cancelTask(taskId)
   }, [cancelTask])
-
-  const refreshHistory = useCallback(async () => {
-    const loaded = await loadHistory()
-    setHistory(loaded)
-  }, [])
 
   const toggleFavorite = useCallback(
     async (id: string, isFavorite: boolean) => {

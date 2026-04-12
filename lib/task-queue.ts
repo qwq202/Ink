@@ -133,7 +133,20 @@ export class TaskQueue {
     return () => this.listeners.delete(listener)
   }
 
-  clear(): void {
+  clear(reason = "Task queue cleared"): void {
+    for (const task of this.running) {
+      task.abortController?.abort(reason)
+      task.status = "cancelled"
+      task.error = reason
+      task.completedAt = Date.now()
+    }
+
+    for (const task of this.queue) {
+      task.status = "cancelled"
+      task.error = reason
+      task.completedAt = Date.now()
+    }
+
     this.queue = []
     this.running = []
     this.notifyListeners()

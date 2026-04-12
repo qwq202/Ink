@@ -45,15 +45,20 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { OpenAISettingsSection } from "@/components/openai/openai-settings-section"
 import { NewAPISettingsSection } from "@/components/newapi/newapi-settings-section"
 import {
+  inferOpenAIMode,
+  loadOpenAIEndpointProfile,
+  OPENAI_ENDPOINT_PROFILE_KEY,
+  OPENAI_IMAGE_ENDPOINT_DEFAULT,
+  OPENAI_RESPONSES_ENDPOINT_DEFAULT,
+  resolveOpenAIEndpointByMode,
+} from "@/lib/openai-endpoint-profile"
+import {
   buildOpenAIHistoryMetadata,
   buildOpenAIHistoryParams,
   getOpenAIImageSizeOptions,
   getOpenAIModelOptions,
   getOpenAIResponsesModes,
   getOpenAINumImages,
-  OPENAI_ENDPOINT_PROFILE_KEY,
-  OPENAI_IMAGE_ENDPOINT_DEFAULT,
-  OPENAI_RESPONSES_ENDPOINT_DEFAULT,
   type OpenAIModelMode,
   type OpenAIResponsesMode,
 } from "@/lib/openai-form-utils"
@@ -71,46 +76,7 @@ import {
   type NewApiModeration,
 } from "@/lib/newapi-openai-compat"
 import type { OpenAIApiMode, GenerationOperationType, OpenAIResponseChainMetadata } from "@/hooks/use-generation-history"
-
-function normalizeEndpointValue(value: string, fallback: string) {
-  const trimmed = value.trim()
-  return trimmed.length ? trimmed : fallback
-}
-
-function inferOpenAIMode(endpoint: string): OpenAIModelMode {
-  if (!endpoint) return "image"
-  return endpoint.includes("/responses") ? "responses" : "image"
-}
-
-function loadOpenAIEndpointProfile() {
-  if (typeof window === "undefined") {
-    return {
-      mode: "image" as OpenAIModelMode,
-      imageEndpoint: OPENAI_IMAGE_ENDPOINT_DEFAULT,
-      responsesEndpoint: OPENAI_RESPONSES_ENDPOINT_DEFAULT,
-    }
-  }
-  try {
-    const raw = localStorage.getItem(OPENAI_ENDPOINT_PROFILE_KEY)
-    if (!raw) throw new Error("no-profile")
-    const parsed = JSON.parse(raw) as {
-      mode?: OpenAIModelMode
-      imageEndpoint?: string
-      responsesEndpoint?: string
-    }
-    return {
-      mode: parsed.mode === "responses" ? "responses" : "image",
-      imageEndpoint: normalizeEndpointValue(parsed.imageEndpoint || "", OPENAI_IMAGE_ENDPOINT_DEFAULT),
-      responsesEndpoint: normalizeEndpointValue(parsed.responsesEndpoint || "", OPENAI_RESPONSES_ENDPOINT_DEFAULT),
-    }
-  } catch {
-    return {
-      mode: "image" as OpenAIModelMode,
-      imageEndpoint: OPENAI_IMAGE_ENDPOINT_DEFAULT,
-      responsesEndpoint: OPENAI_RESPONSES_ENDPOINT_DEFAULT,
-    }
-  }
-}
+import { buildProviderGenerationParams, resolveProviderModelId } from "@/lib/generation-provider-payload"
 
 interface GenerationFormProps {
   mode: "img2img" | "txt2img"
@@ -356,16 +322,9 @@ export function GenerationForm({
   const newapiProvider = getProvider("newapi")
   const openrouterProvider = getProvider("openrouter")
   const openaiProvider = getProvider("openai")
-  const openAIImageEndpoint = openAIEndpointProfile.imageEndpoint
-  const openAIResponsesEndpoint = openAIEndpointProfile.responsesEndpoint
   const openAIEndpointByMode = useCallback(
-    (mode: OpenAIModelMode) => {
-      if (mode === "responses") {
-        return normalizeEndpointValue(openAIResponsesEndpoint, OPENAI_RESPONSES_ENDPOINT_DEFAULT)
-      }
-      return normalizeEndpointValue(openAIImageEndpoint, OPENAI_IMAGE_ENDPOINT_DEFAULT)
-    },
-    [openAIImageEndpoint, openAIResponsesEndpoint],
+    (mode: OpenAIModelMode) => resolveOpenAIEndpointByMode(openAIEndpointProfile, mode),
+    [openAIEndpointProfile],
   )
   const getCurrentOpenAIApiMode = useCallback((): "image" | "responses" => {
     return openAIMode === "responses" ? "responses" : "image"
@@ -702,7 +661,25 @@ export function GenerationForm({
     [openAIModel, openAIModelOptions],
   )
   const openAIModelLabel = selectedOpenAIModelOption?.label || openAIModel
-    
+  const providerModelId = useMemo(
+    () =>
+      resolveProviderModelId({
+        providerId: safeSelectedProvider,
+        falModelId: effectiveFalModelId,
+        newapiModelId: selectedNewapiModel,
+        openrouterModelId: selectedOpenRouterModel,
+        geminiModelId: selectedGeminiModel,
+        openaiModelId: openAIModel,
+      }),
+    [
+      effectiveFalModelId,
+      openAIModel,
+      safeSelectedProvider,
+      selectedGeminiModel,
+      selectedNewapiModel,
+      selectedOpenRouterModel,
+    ],
+  )
   const falModelsUpdatedAtLabel = useMemo(() => {
     if (!falModelsUpdatedAt) return null
     const date = new Date(falModelsUpdatedAt)
@@ -922,6 +899,67 @@ export function GenerationForm({
     }
     return numImages
   }, [numImages, selectedNewapiModel, safeSelectedProvider, openAIMode, openAIModel])
+  const providerGenerationParams = useMemo(
+    () =>
+      buildProviderGenerationParams({
+        providerId: safeSelectedProvider,
+        imageSize: effectiveImageSize,
+        numImages: safeNumImages,
+        seed,
+        safetyChecker,
+        syncMode,
+        selectedNewapiModel,
+        safeNewapiQuality,
+        newapiStyle,
+        newapiBackground,
+        newapiModeration,
+        selectedGeminiModel,
+        geminiThinkingLevel,
+        geminiMediaResolution,
+        geminiAspectRatio,
+        openAIParamsForHistory,
+        supportsFalSeed: selectedFalCapability.supportsSeed,
+        supportsFalSafetyChecker: selectedFalCapability.supportsSafetyChecker,
+        supportsFalSyncMode: selectedFalCapability.supportsSyncMode,
+        isNanoBananaProSelected,
+        falNanoBananaAspectRatio,
+        falNanoBananaResolution,
+        falNanoBananaOutputFormat,
+        isGemini3ProPreviewSelected,
+        falGemini3ProAspectRatio,
+        falGemini3ProResolution,
+        falGemini3ProOutputFormat,
+      }),
+    [
+      effectiveImageSize,
+      falGemini3ProAspectRatio,
+      falGemini3ProOutputFormat,
+      falGemini3ProResolution,
+      falNanoBananaAspectRatio,
+      falNanoBananaOutputFormat,
+      falNanoBananaResolution,
+      geminiAspectRatio,
+      geminiMediaResolution,
+      geminiThinkingLevel,
+      isGemini3ProPreviewSelected,
+      isNanoBananaProSelected,
+      newapiBackground,
+      newapiModeration,
+      newapiStyle,
+      openAIParamsForHistory,
+      safeNewapiQuality,
+      safeNumImages,
+      safeSelectedProvider,
+      safetyChecker,
+      seed,
+      selectedFalCapability.supportsSafetyChecker,
+      selectedFalCapability.supportsSeed,
+      selectedFalCapability.supportsSyncMode,
+      selectedGeminiModel,
+      selectedNewapiModel,
+      syncMode,
+    ],
+  )
 
   const resetForm = useCallback(() => {
     const providers = getEnabledProviderSettings()
@@ -1133,18 +1171,6 @@ export function GenerationForm({
       return
     }
     
-    const modelId = provider.id === "fal"
-      ? effectiveFalModelId
-      : provider.id === "newapi"
-      ? selectedNewapiModel
-      : provider.id === "openrouter"
-      ? selectedOpenRouterModel
-      : provider.id === "gemini"
-      ? selectedGeminiModel
-      : provider.id === "openai"
-      ? openAIModel
-      : undefined
-    
     // 如果是图生图模式，将上传的图片转换为 base64 保存
     let sourceImages: string[] | undefined
     if (mode === "img2img" && images.length > 0) {
@@ -1166,40 +1192,9 @@ export function GenerationForm({
     await addHistoryItem({
       prompt,
       providerId: provider.id,
-      modelId,
+      modelId: providerModelId,
       sourceImages,
-      params: {
-        imageSize: effectiveImageSize,
-        numImages: safeNumImages,
-        seed: provider.id === "fal" && !selectedFalCapability.supportsSeed ? undefined : seed,
-        safetyChecker:
-          provider.id === "fal" && !selectedFalCapability.supportsSafetyChecker ? undefined : safetyChecker,
-        syncMode: provider.id === "fal" && !selectedFalCapability.supportsSyncMode ? undefined : syncMode,
-        quality: provider.id === "newapi" ? safeNewapiQuality : undefined,
-        style: provider.id === "newapi" ? newapiStyle : undefined,
-        background: provider.id === "newapi" && supportsNewApiBackground(selectedNewapiModel) ? newapiBackground : undefined,
-        moderation: provider.id === "newapi" && supportsNewApiModeration(selectedNewapiModel) ? newapiModeration : undefined,
-        thinkingLevel: (
-          (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
-          (provider.id === "gemini" && selectedGeminiModel.includes("pro"))
-        ) ? geminiThinkingLevel : undefined,
-        mediaResolution: (
-          (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
-          provider.id === "gemini"
-        ) ? geminiMediaResolution : undefined,
-        aspectRatio: (
-          (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
-          provider.id === "gemini"
-        ) ? geminiAspectRatio : undefined,
-        falNanoBananaAspectRatio: isNanoBananaProSelected ? falNanoBananaAspectRatio : undefined,
-        falNanoBananaResolution: isNanoBananaProSelected ? falNanoBananaResolution : undefined,
-        falNanoBananaOutputFormat: isNanoBananaProSelected ? falNanoBananaOutputFormat : undefined,
-        // FAL gemini-3-pro-image-preview (Nano Banana 2) 专用参数
-        falGemini3ProAspectRatio: isGemini3ProPreviewSelected ? falGemini3ProAspectRatio : undefined,
-        falGemini3ProResolution: isGemini3ProPreviewSelected ? falGemini3ProResolution : undefined,
-        falGemini3ProOutputFormat: isGemini3ProPreviewSelected ? falGemini3ProOutputFormat : undefined,
-        ...(provider.id === "openai" ? openAIParamsForHistory : {}),
-      },
+      params: providerGenerationParams,
       openaiMode: provider.id === "openai" ? currentOpenAIMetadataMode : undefined,
       operationType: provider.id === "openai" ? operationType : undefined,
       responseChainMetadata: provider.id === "openai" ? buildOpenAIHistoryMetadataByMode(operationType) : undefined,
@@ -1214,38 +1209,11 @@ export function GenerationForm({
     mode,
     images,
     safeSelectedProvider, 
-    effectiveFalModelId,
-    selectedNewapiModel,
-    selectedOpenRouterModel,
-    selectedGeminiModel,
     buildOpenAIHistoryMetadataByMode,
     currentOpenAIMetadataMode,
     operationType,
-    openAIParamsForHistory,
-    selectedFalCapability.supportsSafetyChecker,
-    selectedFalCapability.supportsSeed,
-    selectedFalCapability.supportsSyncMode,
-    openAIModel,
-    effectiveImageSize,
-    safeNumImages,
-    seed,
-    safetyChecker,
-    syncMode,
-    safeNewapiQuality,
-    newapiStyle,
-    newapiBackground,
-    newapiModeration,
-    geminiThinkingLevel,
-    geminiMediaResolution,
-    geminiAspectRatio,
-    isNanoBananaProSelected,
-    falNanoBananaAspectRatio,
-    falNanoBananaResolution,
-    falNanoBananaOutputFormat,
-    isGemini3ProPreviewSelected,
-    falGemini3ProAspectRatio,
-    falGemini3ProResolution,
-    falGemini3ProOutputFormat,
+    providerGenerationParams,
+    providerModelId,
     toast,
     getEnabledProviderSettings,
     addHistoryItem,
@@ -1456,21 +1424,9 @@ export function GenerationForm({
       return
     }
 
-    const modelId = provider.id === "fal"
-      ? effectiveFalModelId
-      : provider.id === "newapi"
-      ? selectedNewapiModel
-      : provider.id === "openrouter"
-      ? selectedOpenRouterModel
-      : provider.id === "gemini"
-      ? selectedGeminiModel
-      : provider.id === "openai"
-      ? openAIModel
-      : undefined
-
     let openaiApiKey: string | undefined
 
-    if (provider.id === "fal" && (modelId?.toLowerCase().includes("byok") ?? false)) {
+    if (provider.id === "fal" && (providerModelId?.toLowerCase().includes("byok") ?? false)) {
       const falScopedOpenAIKey = falProvider?.openaiApiKey?.trim()
       openaiApiKey = falScopedOpenAIKey || openaiProvider?.apiKey?.trim()
 
@@ -1507,40 +1463,9 @@ export function GenerationForm({
     await addHistoryItem({
       prompt,
       providerId: provider.id,
-      modelId,
+      modelId: providerModelId,
       sourceImages,
-      params: {
-        imageSize: effectiveImageSize,
-        numImages: safeNumImages,
-        seed: provider.id === "fal" && !selectedFalCapability.supportsSeed ? undefined : seed,
-        safetyChecker:
-          provider.id === "fal" && !selectedFalCapability.supportsSafetyChecker ? undefined : safetyChecker,
-        syncMode: provider.id === "fal" && !selectedFalCapability.supportsSyncMode ? undefined : syncMode,
-        quality: provider.id === "newapi" ? safeNewapiQuality : undefined,
-        style: provider.id === "newapi" ? newapiStyle : undefined,
-        background: provider.id === "newapi" && supportsNewApiBackground(selectedNewapiModel) ? newapiBackground : undefined,
-        moderation: provider.id === "newapi" && supportsNewApiModeration(selectedNewapiModel) ? newapiModeration : undefined,
-        thinkingLevel: (
-          (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
-          (provider.id === "gemini" && selectedGeminiModel.includes("pro"))
-        ) ? geminiThinkingLevel : undefined,
-        mediaResolution: (
-          (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
-          provider.id === "gemini"
-        ) ? geminiMediaResolution : undefined,
-        aspectRatio: (
-          (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
-          provider.id === "gemini"
-        ) ? geminiAspectRatio : undefined,
-        falNanoBananaAspectRatio: isNanoBananaProSelected ? falNanoBananaAspectRatio : undefined,
-        falNanoBananaResolution: isNanoBananaProSelected ? falNanoBananaResolution : undefined,
-        falNanoBananaOutputFormat: isNanoBananaProSelected ? falNanoBananaOutputFormat : undefined,
-        // FAL gemini-3-pro-image-preview (Nano Banana 2) 专用参数
-        falGemini3ProAspectRatio: isGemini3ProPreviewSelected ? falGemini3ProAspectRatio : undefined,
-        falGemini3ProResolution: isGemini3ProPreviewSelected ? falGemini3ProResolution : undefined,
-        falGemini3ProOutputFormat: isGemini3ProPreviewSelected ? falGemini3ProOutputFormat : undefined,
-        ...(provider.id === "openai" ? openAIParamsForHistory : {}),
-      },
+      params: providerGenerationParams,
       openaiMode: provider.id === "openai" ? currentOpenAIMetadataMode : undefined,
       operationType: provider.id === "openai" ? operationType : undefined,
       responseChainMetadata: provider.id === "openai" ? buildOpenAIHistoryMetadataByMode(operationType) : undefined,
@@ -1550,38 +1475,10 @@ export function GenerationForm({
       prompt,
       imageSize: effectiveImageSize,
       numImages: safeNumImages,
-      seed: provider.id === "fal" && !selectedFalCapability.supportsSeed ? undefined : seed,
-      safetyChecker: provider.id === "fal" && !selectedFalCapability.supportsSafetyChecker ? undefined : safetyChecker,
-      syncMode: provider.id === "fal" && !selectedFalCapability.supportsSyncMode ? undefined : syncMode,
+      ...providerGenerationParams,
       images: mode === "img2img" ? images : undefined,
-      modelId,
-      quality: provider.id === "newapi" ? safeNewapiQuality : undefined,
-      style: provider.id === "newapi" ? newapiStyle : undefined,
-      background: provider.id === "newapi" && supportsNewApiBackground(selectedNewapiModel) ? newapiBackground : undefined,
-      moderation: provider.id === "newapi" && supportsNewApiModeration(selectedNewapiModel) ? newapiModeration : undefined,
+      modelId: providerModelId,
       openaiApiKey,
-      ...(provider.id === "openai" ? openAIParamsForHistory : {}),
-      // Gemini 参数（NewAPI 的 Gemini 模型或 Gemini 供应商）
-      thinkingLevel: (
-        (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
-        (provider.id === "gemini" && selectedGeminiModel.includes("pro"))
-      ) ? geminiThinkingLevel : undefined,
-      mediaResolution: (
-        (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
-        provider.id === "gemini"
-      ) ? geminiMediaResolution : undefined,
-      aspectRatio: (
-        (provider.id === "newapi" && isNewApiGeminiModel(selectedNewapiModel)) ||
-        provider.id === "gemini"
-      ) ? geminiAspectRatio : undefined,
-      // FAL nano-banana-pro 专用参数
-      falNanoBananaAspectRatio: isNanoBananaProSelected ? falNanoBananaAspectRatio : undefined,
-      falNanoBananaResolution: isNanoBananaProSelected ? falNanoBananaResolution : undefined,
-      falNanoBananaOutputFormat: isNanoBananaProSelected ? falNanoBananaOutputFormat : undefined,
-      // FAL gemini-3-pro-image-preview (Nano Banana 2) 专用参数
-      falGemini3ProAspectRatio: isGemini3ProPreviewSelected ? falGemini3ProAspectRatio : undefined,
-      falGemini3ProResolution: isGemini3ProPreviewSelected ? falGemini3ProResolution : undefined,
-      falGemini3ProOutputFormat: isGemini3ProPreviewSelected ? falGemini3ProOutputFormat : undefined,
     })
   }
 

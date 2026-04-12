@@ -12,6 +12,7 @@ import {
   supportsNewApiModeration,
   supportsNewApiStyle,
 } from "./newapi-openai-compat"
+import { getNewApiImagesUrl, getNewApiModelsUrl } from "./newapi-endpoint"
 
 export interface GenerationParams {
   prompt: string
@@ -385,12 +386,7 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
           })
         }
 
-        let baseUrl = providerEndpoint.replace(/\/+$/, "")
-        if (baseUrl.includes("/v1/images")) {
-          const match = baseUrl.match(/^(https?:\/\/[^/]+)/)
-          baseUrl = match ? match[1] : baseUrl
-        }
-        const editEndpoint = `${baseUrl}/v1/images/edits`
+        const editEndpoint = getNewApiImagesUrl(providerEndpoint, "edit")
 
         return fetch(editEndpoint, {
           method: "POST",
@@ -533,12 +529,7 @@ export async function generateImages(provider: ProviderConfig, params: Generatio
         })
       }
 
-      let baseUrl = providerEndpoint.replace(/\/+$/, "")
-      if (baseUrl.includes("/v1/images")) {
-        const match = baseUrl.match(/^(https?:\/\/[^/]+)/)
-        baseUrl = match ? match[1] : baseUrl
-      }
-      const generationEndpoint = `${baseUrl}/v1/images/generations`
+      const generationEndpoint = getNewApiImagesUrl(providerEndpoint, "generation")
 
       const requestBody: Record<string, unknown> = {
         model: newapiModel,
@@ -907,14 +898,7 @@ export async function fetchNewApiModels(provider: ProviderConfig): Promise<NewAp
     throw new Error("请先在设置中填写 NewAPI API Key")
   }
 
-  // Normalize base endpoint
-  let baseUrl = provider.endpoint.trim().replace(/\/+$/, "")
-  if (baseUrl.includes("/v1/images")) {
-    const match = baseUrl.match(/^(https?:\/\/[^/]+)/)
-    baseUrl = match ? match[1] : baseUrl
-  }
-  
-  const modelsUrl = `${baseUrl}/v1/models`
+  const modelsUrl = getNewApiModelsUrl(provider.endpoint)
 
   await logDebug({
     message: "NewAPI models fetch dispatch",

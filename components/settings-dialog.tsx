@@ -10,6 +10,14 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Save, Eye, EyeOff, AlertTriangle } from "lucide-react"
 import { useProviderSettings } from "@/hooks/use-provider-settings"
 import { useToast } from "@/hooks/use-toast"
+import {
+  inferOpenAIMode,
+  loadOpenAIEndpointProfile,
+  normalizeOpenAIEndpointValue,
+  OPENAI_IMAGE_ENDPOINT_DEFAULT,
+  OPENAI_RESPONSES_ENDPOINT_DEFAULT,
+  saveOpenAIEndpointProfile,
+} from "@/lib/openai-endpoint-profile"
 import { cn } from "@/lib/utils"
 
 interface SettingsDialogProps {
@@ -28,55 +36,6 @@ const PROVIDERS = [
 ] as const
 
 type OpenAIMode = "image" | "responses"
-
-const OPENAI_IMAGE_ENDPOINT_DEFAULT = "https://api.openai.com/v1/images/generations"
-const OPENAI_RESPONSES_ENDPOINT_DEFAULT = "https://api.openai.com/v1/responses"
-const OPENAI_ENDPOINT_PROFILE_KEY = "ai-image-openai-endpoint-profile"
-
-interface OpenAIEndpointProfile {
-  mode: OpenAIMode
-  imageEndpoint: string
-  responsesEndpoint: string
-}
-
-function normalizeEndpoint(value: string, fallback: string) {
-  const trimmed = value.trim()
-  return trimmed.length ? trimmed : fallback
-}
-
-function inferOpenAIMode(endpoint: string): OpenAIMode {
-  if (!endpoint) return "image"
-  if (endpoint.includes("/responses")) return "responses"
-  return "image"
-}
-
-function loadOpenAIEndpointProfile(): OpenAIEndpointProfile {
-  if (typeof window === "undefined") {
-    return {
-      mode: "image",
-      imageEndpoint: OPENAI_IMAGE_ENDPOINT_DEFAULT,
-      responsesEndpoint: OPENAI_RESPONSES_ENDPOINT_DEFAULT,
-    }
-  }
-  try {
-    const raw = localStorage.getItem(OPENAI_ENDPOINT_PROFILE_KEY)
-    if (!raw) throw new Error("no profile")
-
-    const parsed = JSON.parse(raw) as Partial<OpenAIEndpointProfile>
-    const mode: OpenAIMode = parsed.mode === "responses" ? "responses" : "image"
-    return {
-      mode,
-      imageEndpoint: normalizeEndpoint(parsed.imageEndpoint || "", OPENAI_IMAGE_ENDPOINT_DEFAULT),
-      responsesEndpoint: normalizeEndpoint(parsed.responsesEndpoint || "", OPENAI_RESPONSES_ENDPOINT_DEFAULT),
-    }
-  } catch {
-    return {
-      mode: "image",
-      imageEndpoint: OPENAI_IMAGE_ENDPOINT_DEFAULT,
-      responsesEndpoint: OPENAI_RESPONSES_ENDPOINT_DEFAULT,
-    }
-  }
-}
 
 function KeyInput({
   id,
@@ -179,29 +138,13 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
   const [internalTab, setInternalTab] = useState("fal")
   const activeProvider = activeTab ?? internalTab
   const safetyNote = "密钥仅保存在本地加密存储，不会上传到服务器。"
-
-  const isEnabled = (id: string) => {
-    switch (id) {
-      case "fal": return falConfig.enabled
-      case "openai": return openaiConfig.enabled
-      case "newapi": return newapiConfig.enabled
-      case "openrouter": return openrouterConfig.enabled
-      case "gemini": return geminiConfig.enabled
-      default: return false
-    }
-  }
-
-  const saveOpenAIEndpointProfile = (next: OpenAIEndpointProfile) => {
-    if (typeof window === "undefined") return
-    localStorage.setItem(
-      OPENAI_ENDPOINT_PROFILE_KEY,
-      JSON.stringify({
-        ...next,
-        imageEndpoint: normalizeEndpoint(next.imageEndpoint, OPENAI_IMAGE_ENDPOINT_DEFAULT),
-        responsesEndpoint: normalizeEndpoint(next.responsesEndpoint, OPENAI_RESPONSES_ENDPOINT_DEFAULT),
-      }),
-    )
-  }
+  const enabledByProvider = {
+    fal: falConfig.enabled,
+    openai: openaiConfig.enabled,
+    newapi: newapiConfig.enabled,
+    openrouter: openrouterConfig.enabled,
+    gemini: geminiConfig.enabled,
+  } as const
 
   useEffect(() => {
     if (!settings) return
@@ -223,8 +166,8 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
     setOpenaiConfig({
       apiKey: settings.openai.apiKey,
       mode: settings.openai.openaiApiMode === "responses" ? "responses" : inferredMode === "responses" ? "responses" : openAIProfile.mode,
-      imageEndpoint: normalizeEndpoint(imageEndpointFromConfig, OPENAI_IMAGE_ENDPOINT_DEFAULT),
-      responsesEndpoint: normalizeEndpoint(responsesEndpointFromConfig, OPENAI_RESPONSES_ENDPOINT_DEFAULT),
+      imageEndpoint: normalizeOpenAIEndpointValue(imageEndpointFromConfig, OPENAI_IMAGE_ENDPOINT_DEFAULT),
+      responsesEndpoint: normalizeOpenAIEndpointValue(responsesEndpointFromConfig, OPENAI_RESPONSES_ENDPOINT_DEFAULT),
       enabled: settings.openai.enabled,
     })
 
@@ -253,8 +196,11 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
   }
 
   const handleSaveOpenAI = async () => {
-    const imageEndpoint = normalizeEndpoint(openaiConfig.imageEndpoint, OPENAI_IMAGE_ENDPOINT_DEFAULT)
-    const responsesEndpoint = normalizeEndpoint(openaiConfig.responsesEndpoint, OPENAI_RESPONSES_ENDPOINT_DEFAULT)
+    const imageEndpoint = normalizeOpenAIEndpointValue(openaiConfig.imageEndpoint, OPENAI_IMAGE_ENDPOINT_DEFAULT)
+    const responsesEndpoint = normalizeOpenAIEndpointValue(
+      openaiConfig.responsesEndpoint,
+      OPENAI_RESPONSES_ENDPOINT_DEFAULT,
+    )
     const nextOpenAIEndpoint =
       openaiConfig.mode === "responses" ? responsesEndpoint : imageEndpoint
 
@@ -307,8 +253,11 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
   }
 
   const testOpenAIConnection = async () => {
-    const imageEndpoint = normalizeEndpoint(openaiConfig.imageEndpoint, OPENAI_IMAGE_ENDPOINT_DEFAULT)
-    const responsesEndpoint = normalizeEndpoint(openaiConfig.responsesEndpoint, OPENAI_RESPONSES_ENDPOINT_DEFAULT)
+    const imageEndpoint = normalizeOpenAIEndpointValue(openaiConfig.imageEndpoint, OPENAI_IMAGE_ENDPOINT_DEFAULT)
+    const responsesEndpoint = normalizeOpenAIEndpointValue(
+      openaiConfig.responsesEndpoint,
+      OPENAI_RESPONSES_ENDPOINT_DEFAULT,
+    )
     const endpoint =
       openaiConfig.mode === "responses" ? responsesEndpoint : imageEndpoint
 
@@ -405,7 +354,7 @@ export function SettingsDialog({ open, onOpenChange, activeTab, onTabChange }: S
               >
                 <span className="flex-1 font-medium">{p.label}</span>
                 <Switch
-                  checked={isEnabled(p.id)}
+                  checked={enabledByProvider[p.id]}
                   onCheckedChange={(checked) => {
                     if (p.id === "fal") setFalConfig((c) => ({ ...c, enabled: checked }))
                     else if (p.id === "openai") setOpenaiConfig((c) => ({ ...c, enabled: checked }))
