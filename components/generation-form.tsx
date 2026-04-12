@@ -196,7 +196,7 @@ export function GenerationForm({
   const [enhanceAvailable, setEnhanceAvailable] = useState(false)
   
   // 历史记录状态
-  const { history, addHistoryItem, deleteHistoryItem, clearHistory } = useGenerationHistory()
+  const { history, addHistoryItem, deleteHistoryItem, clearHistory, getHistorySourceImages } = useGenerationHistory()
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false)
   const [historyToDelete, setHistoryToDelete] = useState<string | null>(null)
   const [showClearHistoryConfirm, setShowClearHistoryConfirm] = useState(false)
@@ -1163,7 +1163,7 @@ export function GenerationForm({
       }
     }
     
-    addHistoryItem({
+    await addHistoryItem({
       prompt,
       providerId: provider.id,
       modelId,
@@ -1340,11 +1340,12 @@ export function GenerationForm({
     if (params.falGemini3ProOutputFormat) setFalGemini3ProOutputFormat(params.falGemini3ProOutputFormat)
     
     // 如果有原图，恢复到上传区
-    if (historyItem.sourceImages && historyItem.sourceImages.length > 0 && onImagesChange && onModeChange) {
+    const sourceImages = historyItem.sourceImages?.length ? historyItem.sourceImages : await getHistorySourceImages(historyItem.id)
+    if (sourceImages.length > 0 && onImagesChange && onModeChange) {
       try {
         const files: File[] = []
-        for (let i = 0; i < historyItem.sourceImages.length; i++) {
-          const base64 = historyItem.sourceImages[i]
+        for (let i = 0; i < sourceImages.length; i++) {
+          const base64 = sourceImages[i]
           // 将 base64 转换为 Blob
           const response = await fetch(base64)
           const blob = await response.blob()
@@ -1365,7 +1366,7 @@ export function GenerationForm({
       title: "已加载历史参数",
       description: historyItem.label || `参数于 ${new Date(historyItem.timestamp).toLocaleString("zh-CN")} 保存`,
     })
-  }, [toast, updateFalModel, onImagesChange, onModeChange, setOpenAIResponsesMode, setOpenAIResponsesPreviousResponseId, setOpenAIImageQuality, setOpenAIImageStyle, setOpenAIMode, setOpenAIResponsesTemperature, setOpenAIResponsesMaxOutputTokens, setOpenAIModel])
+  }, [toast, updateFalModel, onImagesChange, onModeChange, setOpenAIResponsesMode, setOpenAIResponsesPreviousResponseId, setOpenAIImageQuality, setOpenAIImageStyle, setOpenAIMode, setOpenAIResponsesTemperature, setOpenAIResponsesMaxOutputTokens, setOpenAIModel, getHistorySourceImages])
 
   const handleGenerate = async () => {
     const isImg2ImgMode = mode === "img2img"
@@ -1503,7 +1504,7 @@ export function GenerationForm({
       }
     }
     
-    addHistoryItem({
+    await addHistoryItem({
       prompt,
       providerId: provider.id,
       modelId,

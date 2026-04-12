@@ -1,8 +1,9 @@
 import type { GenerationResult } from "./api-client"
 
 const DB_NAME = "ai-image-tool"
-const DB_VERSION = 3
+const DB_VERSION = 4
 const STORE_NAME = "history"
+const SOURCE_IMAGE_STORE_NAME = "history-source-images"
 const MAX_HISTORY_ITEMS = 100
 
 function openDB(): Promise<IDBDatabase> {
@@ -44,8 +45,20 @@ function openDB(): Promise<IDBDatabase> {
           }
         }
       }
+
+      if (event.oldVersion < 4) {
+        if (!db.objectStoreNames.contains(SOURCE_IMAGE_STORE_NAME)) {
+          db.createObjectStore(SOURCE_IMAGE_STORE_NAME, { keyPath: "historyId" })
+        }
+      }
     }
   })
+}
+
+interface SourceImagesRecord {
+  historyId: string
+  images: string[]
+  updatedAt: number
 }
 
 export async function saveToHistory(result: GenerationResult): Promise<void> {
@@ -126,8 +139,79 @@ export async function deleteFromHistory(id: string): Promise<void> {
 
 export async function clearHistory(): Promise<void> {
   const db = await openDB()
-  const transaction = db.transaction([STORE_NAME], "readwrite")
+  const transaction = db.transaction([STORE_NAME, SOURCE_IMAGE_STORE_NAME], "readwrite")
   const store = transaction.objectStore(STORE_NAME)
+  const sourceImageStore = transaction.objectStore(SOURCE_IMAGE_STORE_NAME)
+
+  await new Promise<void>((resolve, reject) => {
+    const request = store.clear()
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
+
+  await new Promise<void>((resolve, reject) => {
+    const request = sourceImageStore.clear()
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
+
+  db.close()
+}
+
+export async function saveHistorySourceImages(historyId: string, images: string[]): Promise<void> {
+  const db = await openDB()
+  const transaction = db.transaction([SOURCE_IMAGE_STORE_NAME], "readwrite")
+  const store = transaction.objectStore(SOURCE_IMAGE_STORE_NAME)
+
+  await new Promise<void>((resolve, reject) => {
+    const request = store.put({
+      historyId,
+      images,
+      updatedAt: Date.now(),
+    } satisfies SourceImagesRecord)
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
+
+  db.close()
+}
+
+export async function loadHistorySourceImages(historyId: string): Promise<string[]> {
+  const db = await openDB()
+  const transaction = db.transaction([SOURCE_IMAGE_STORE_NAME], "readonly")
+  const store = transaction.objectStore(SOURCE_IMAGE_STORE_NAME)
+
+  const images = await new Promise<string[]>((resolve, reject) => {
+    const request = store.get(historyId)
+    request.onsuccess = () => {
+      const record = request.result as SourceImagesRecord | undefined
+      resolve(record?.images ?? [])
+    }
+    request.onerror = () => reject(request.error)
+  })
+
+  db.close()
+  return images
+}
+
+export async function deleteHistorySourceImages(historyId: string): Promise<void> {
+  const db = await openDB()
+  const transaction = db.transaction([SOURCE_IMAGE_STORE_NAME], "readwrite")
+  const store = transaction.objectStore(SOURCE_IMAGE_STORE_NAME)
+
+  await new Promise<void>((resolve, reject) => {
+    const request = store.delete(historyId)
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
+
+  db.close()
+}
+
+export async function clearAllHistorySourceImages(): Promise<void> {
+  const db = await openDB()
+  const transaction = db.transaction([SOURCE_IMAGE_STORE_NAME], "readwrite")
+  const store = transaction.objectStore(SOURCE_IMAGE_STORE_NAME)
 
   await new Promise<void>((resolve, reject) => {
     const request = store.clear()

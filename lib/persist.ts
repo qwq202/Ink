@@ -9,12 +9,13 @@ export function loadJSON<T>(key: string, fallback: T): T {
   }
 }
 
-export function saveJSON<T>(key: string, value: T): void {
-  if (typeof window === "undefined") return
+export function saveJSON<T>(key: string, value: T): boolean {
+  if (typeof window === "undefined") return false
   try {
     window.localStorage.setItem(key, JSON.stringify(value))
+    return true
   } catch {
-    // ignore quota or serialization errors
+    return false
   }
 }
 
@@ -25,5 +26,4 @@ export function debounce<T extends (...args: any[]) => void>(fn: T, delayMs = 30
     timer = setTimeout(() => fn(...args), delayMs)
   }) as T
 }
-
 

@@ -3,6 +3,12 @@
 import { useState, useEffect, useCallback } from "react"
 import { loadJSON, saveJSON } from "@/lib/persist"
 import type { GenerationParams } from "@/lib/api-client"
+import {
+  clearAllHistorySourceImages,
+  deleteHistorySourceImages,
+  loadHistorySourceImages,
+  saveHistorySourceImages,
+} from "@/lib/db"
 
 export type OpenAIApiMode = "image-api" | "responses-api"
 export type GenerationOperationType = "txt2img" | "img2img"
@@ -68,29 +74,48 @@ export function useGenerationHistory() {
     // 限制历史记录数量
     const limited = items.slice(0, MAX_HISTORY_ITEMS)
     setHistory(limited)
-    saveJSON(STORAGE_KEY, limited)
+    return saveJSON(STORAGE_KEY, limited)
   }, [])
 
   // 添加新的历史记录
   const addHistoryItem = useCallback(
-    (item: Omit<GenerationHistoryItem, "id" | "timestamp">) => {
+    async (item: Omit<GenerationHistoryItem, "id" | "timestamp">) => {
       const newItem: GenerationHistoryItem = {
         ...item,
         id: `gen-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         timestamp: Date.now(),
+        sourceImages: undefined,
       }
-      
+
+      if (item.sourceImages?.length) {
+        await saveHistorySourceImages(newItem.id, item.sourceImages)
+      }
+
       const updated = [newItem, ...history]
-      saveHistory(updated)
+      const limited = updated.slice(0, MAX_HISTORY_ITEMS)
+      const removedIds = updated.slice(MAX_HISTORY_ITEMS).map((entry) => entry.id)
+
+      const saved = saveHistory(updated)
+      if (!saved) {
+        throw new Error("历史记录保存失败，可能是浏览器存储空间不足。")
+      }
+
+      await Promise.all(removedIds.map((id) => deleteHistorySourceImages(id)))
+
+      return limited[0] ?? newItem
     },
     [history, saveHistory]
   )
 
   // 删除历史记录
   const deleteHistoryItem = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const updated = history.filter((item) => item.id !== id)
-      saveHistory(updated)
+      await deleteHistorySourceImages(id)
+      const saved = saveHistory(updated)
+      if (!saved) {
+        throw new Error("历史记录删除后保存失败。")
+      }
     },
     [history, saveHistory]
   )
@@ -101,14 +126,21 @@ export function useGenerationHistory() {
       const updated = history.map((item) =>
         item.id === id ? { ...item, label } : item
       )
-      saveHistory(updated)
+      const saved = saveHistory(updated)
+      if (!saved) {
+        throw new Error("历史标签保存失败。")
+      }
     },
     [history, saveHistory]
   )
 
   // 清空历史记录
-  const clearHistory = useCallback(() => {
-    saveHistory([])
+  const clearHistory = useCallback(async () => {
+    await clearAllHistorySourceImages()
+    const saved = saveHistory([])
+    if (!saved) {
+      throw new Error("清空历史后保存失败。")
+    }
   }, [saveHistory])
 
   // 获取单个历史记录
@@ -119,6 +151,10 @@ export function useGenerationHistory() {
     [history]
   )
 
+  const getHistorySourceImages = useCallback(async (id: string) => {
+    return loadHistorySourceImages(id)
+  }, [])
+
   return {
     history,
     isLoading,
@@ -127,5 +163,6 @@ export function useGenerationHistory() {
     updateHistoryLabel,
     clearHistory,
     getHistoryItem,
+    getHistorySourceImages,
   }
 }

@@ -111,7 +111,16 @@ async function fetchOpenRouterModels(
 
   // Fetch from API
   const timestamp = Date.now()
-  const response = await fetch(`/api/openrouter/models?endpoint=${encodeURIComponent(endpoint)}&apiKey=${encodeURIComponent(apiKey)}`)
+  const response = await fetch("/api/openrouter/models", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      endpoint,
+      apiKey,
+    }),
+  })
 
   if (!response.ok) {
     const error = await response.text()

@@ -146,15 +146,17 @@ export function useNewApiModels(options: UseNewApiModelsOptions = {}) {
           setIsRefreshing(true)
         }
 
-        const params = new URLSearchParams()
-        params.set("endpoint", endpoint)
-        params.set("apiKey", apiKey)
-        if (forceRefresh) {
-          params.set("refresh", "1")
-        }
-
-        const query = params.toString()
-        const response = await fetch(`/api/newapi/models?${query}`)
+        const response = await fetch("/api/newapi/models", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            endpoint,
+            apiKey,
+            ...(forceRefresh ? { refresh: true } : {}),
+          }),
+        })
         
         if (!response.ok) {
           let message = ""
@@ -239,12 +241,16 @@ export function prefetchNewApiModels(
     return existing
   }
 
-  const params = new URLSearchParams()
-  params.set("endpoint", endpoint)
-  params.set("apiKey", apiKey)
-
-  const query = params.toString()
-  const promise = fetch(`/api/newapi/models?${query}`)
+  const promise = fetch("/api/newapi/models", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      endpoint,
+      apiKey,
+    }),
+  })
     .then(async (response) => {
       if (!response.ok) {
         return

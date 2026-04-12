@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 
-export async function GET(request: NextRequest) {
+async function readRequestConfig(request: NextRequest) {
+  const body = (await request.json()) as { endpoint?: string; apiKey?: string }
+  return {
+    endpoint: typeof body.endpoint === "string" ? body.endpoint : null,
+    apiKey: typeof body.apiKey === "string" ? body.apiKey : null,
+  }
+}
+
+async function handleRequest(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const endpoint = searchParams.get("endpoint")
-    const apiKey = searchParams.get("apiKey")
+    const { endpoint, apiKey } = await readRequestConfig(request)
 
     if (!endpoint || !apiKey) {
       return NextResponse.json(
@@ -58,4 +64,15 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+export async function GET() {
+  return NextResponse.json(
+    { error: "Method not allowed. Use POST." },
+    { status: 405 },
+  )
+}
+
+export async function POST(request: NextRequest) {
+  return handleRequest(request)
 }

@@ -43,6 +43,7 @@ const AUTH_HEADER_KEY = "authorization"
 const FALLBACK_AUTH_HEADER_KEY = "x-fal-key"
 const V1_MAX_RETRY_ATTEMPTS = 3
 const V1_RETRY_BASE_DELAY_MS = 200
+const FAL_MODELS_CACHE_TTL_MS = 60 * 60 * 1000
 
 interface FalModelsCacheEntry {
   items: FalModelItem[]
@@ -61,9 +62,18 @@ class FalModelsFetchError extends Error {
 const falModelsCache = new Map<string, FalModelsCacheEntry>()
 const falModelsInFlight = new Map<string, Promise<FalModelsCacheEntry>>()
 
+function hashValue(value: string): string {
+  let hash = 0
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i)
+    hash |= 0
+  }
+  return Math.abs(hash).toString(36)
+}
+
 function getCacheKey(category: string, authorizationHeader: string | null): string {
   const normalizedCategory = category || "default"
-  const normalizedAuth = authorizationHeader ? authorizationHeader.trim() : "public"
+  const normalizedAuth = authorizationHeader ? hashValue(authorizationHeader.trim()) : "public"
   return `${normalizedCategory}::${normalizedAuth}`
 }
 
@@ -291,6 +301,10 @@ export async function GET(request: Request) {
 
   if (!forceRefresh) {
     cacheEntry = falModelsCache.get(cacheKey)
+    if (cacheEntry && Date.now() - cacheEntry.timestamp > FAL_MODELS_CACHE_TTL_MS) {
+      falModelsCache.delete(cacheKey)
+      cacheEntry = undefined
+    }
     if (cacheEntry) {
       console.debug("[api/fal/models] Serving models from cache", {
         ...logContext,
